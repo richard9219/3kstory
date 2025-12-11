@@ -1,0 +1,41 @@
+# 系统文件
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.iml
+.project
+.classpath
+
+# 依赖
+node_modules/
+vendor/
+venv/
+__pycache__/
+
+# 编译产物
+dist/
+build/
+*.exe
+*.o
+
+# 环境文件
+.env
+.env.local
+.env.*.local
+
+# 日志
+*.log
+logs/
+
+# Docker
+.docker/
+
+# 缓存
+.cache/
+.tmp/

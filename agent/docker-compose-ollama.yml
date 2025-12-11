@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  # Ollama 服务 - 快速测试推荐
+  ollama:
+    image: ollama/ollama:latest
+    container_name: 3kstory-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - 3kstory-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:14-alpine
+    container_name: 3kstory-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: 3kstory
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - 3kstory-network
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: 3kstory-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - 3kstory-network
+
+networks:
+  3kstory-network:
+    driver: bridge
+
+volumes:
+  ollama-data:
+  postgres-data:
+  redis-data:

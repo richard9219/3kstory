@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  # vLLM 服务 - 生产环境推荐
+  vllm:
+    image: vllm/vllm-openai:latest
+    container_name: 3kstory-vllm
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/root/.cache/huggingface
+    environment:
+      - HF_HOME=/root/.cache/huggingface
+    command: >
+      --model Qwen/Qwen2.5-7B-Instruct
+      --served-model-name qwen2.5-7b
+      --host 0.0.0.0
+      --port 8000
+      --dtype auto
+      --max-model-len 32768
+      --gpu-memory-utilization 0.9
+      --trust-remote-code
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - 3kstory-network
+
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:14-alpine
+    container_name: 3kstory-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: 3kstory
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - 3kstory-network
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: 3kstory-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - 3kstory-network
+
+networks:
+  3kstory-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
