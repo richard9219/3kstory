@@ -24,7 +24,7 @@ func NewVideoHandler(videoService *services.VideoService, projectService *servic
 type GenerateVideoRequest struct {
 	SceneID     uint   `json:"scene_id" binding:"required"`
 	Prompt      string `json:"prompt" binding:"required"`
-	Provider    string `json:"provider" binding:"required,oneof=runway pika"`
+	Provider    string `json:"provider" binding:"required,oneof=runway pika local"`
 	ImageURL    string `json:"image_url"`
 	Duration    int    `json:"duration" binding:"min=1,max=60"`
 	AspectRatio string `json:"aspect_ratio" binding:"oneof=16:9 9:16"`
@@ -114,7 +114,7 @@ func (h *VideoHandler) GenerateVideo(c *gin.Context) {
 // GetVideoStatusRequest represents the request to get video status
 type GetVideoStatusRequest struct {
 	VideoID  string `json:"video_id" binding:"required"`
-	Provider string `json:"provider" binding:"required,oneof=runway pika"`
+	Provider string `json:"provider" binding:"required,oneof=runway pika local"`
 }
 
 // GetVideoStatus retrieves the status of a video generation job

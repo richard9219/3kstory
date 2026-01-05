@@ -44,8 +44,17 @@ type OSSConfig struct {
 }
 
 type AIConfig struct {
+	AIProvider       string
 	QwenAPIKey       string
 	QwenAPIBase      string
+	VLLMBaseURL      string
+	VLLMModelName    string
+	VLLMMaxTokens    int
+	VLLMTimeout      int
+	OLLAMABaseURL    string
+	OLLAMAModelName  string
+	OLLAMAMaxTokens  int
+	OLLAMATimeout    int
 	TextServiceURL   string
 	ImageServiceURL  string
 	VideoServiceURL  string
@@ -56,6 +65,10 @@ type AIConfig struct {
 
 func Load() *Config {
 	expireHours, _ := strconv.Atoi(getEnv("JWT_EXPIRE_HOURS", "168"))
+	vllmMaxTokens, _ := strconv.Atoi(getEnv("VLLM_MAX_TOKENS", "2048"))
+	vllmTimeout, _ := strconv.Atoi(getEnv("VLLM_TIMEOUT", "60"))
+	ollamaMaxTokens, _ := strconv.Atoi(getEnv("OLLAMA_MAX_TOKENS", "2048"))
+	ollamaTimeout, _ := strconv.Atoi(getEnv("OLLAMA_TIMEOUT", "60"))
 
 	return &Config{
 		Env:  getEnv("ENV", "development"),
@@ -85,8 +98,17 @@ func Load() *Config {
 			BaseURL:         getEnv("OSS_BASE_URL", ""),
 		},
 		AI: AIConfig{
+			AIProvider:       getEnv("AI_PROVIDER", "cloud_qwen"),
 			QwenAPIKey:       getEnv("QWEN_API_KEY", ""),
 			QwenAPIBase:      getEnv("QWEN_API_BASE", ""),
+			VLLMBaseURL:      getEnv("VLLM_BASE_URL", "http://localhost:8000"),
+			VLLMModelName:    getEnv("VLLM_MODEL_NAME", "qwen2.5-7b"),
+			VLLMMaxTokens:    vllmMaxTokens,
+			VLLMTimeout:      vllmTimeout,
+			OLLAMABaseURL:    getEnv("OLLAMA_BASE_URL", "http://localhost:11434"),
+			OLLAMAModelName:  getEnv("OLLAMA_MODEL_NAME", "qwen2.5:7b"),
+			OLLAMAMaxTokens:  ollamaMaxTokens,
+			OLLAMATimeout:    ollamaTimeout,
 			TextServiceURL:   getEnv("AI_TEXT_SERVICE_URL", ""),
 			ImageServiceURL:  getEnv("AI_IMAGE_SERVICE_URL", ""),
 			VideoServiceURL:  getEnv("AI_VIDEO_SERVICE_URL", ""),

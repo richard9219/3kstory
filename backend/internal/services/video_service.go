@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/richard9219/3kstory/internal/config"
@@ -18,6 +19,7 @@ type VideoProvider string
 const (
 	ProviderRunway VideoProvider = "runway"
 	ProviderPika   VideoProvider = "pika"
+	ProviderLocal  VideoProvider = "local"
 )
 
 // VideoService handles video generation via third-party APIs
@@ -59,9 +61,83 @@ func (s *VideoService) GenerateVideo(ctx context.Context, req *VideoGenerationRe
 		return s.generateWithRunway(ctx, req)
 	case ProviderPika:
 		return s.generateWithPika(ctx, req)
+	case ProviderLocal:
+		return s.generateWithLocalService(ctx, req)
 	default:
 		return nil, fmt.Errorf("unsupported video provider: %s", req.Provider)
 	}
+}
+
+func (s *VideoService) generateWithLocalService(ctx context.Context, req *VideoGenerationRequest) (*VideoGenerationResult, error) {
+	if s.cfg.AI.VideoServiceURL == "" {
+		return nil, fmt.Errorf("AI_VIDEO_SERVICE_URL is not configured")
+	}
+
+	endpoint := s.cfg.AI.VideoServiceURL
+	requestBody := map[string]interface{}{
+		"prompt":       req.Prompt,
+		"image_url":    req.ImageURL,
+		"duration":     req.Duration,
+		"aspect_ratio": req.AspectRatio,
+		"scene_id":     req.SceneID,
+		"project_id":   req.ProjectID,
+	}
+
+	jsonData, _ := json.Marshal(requestBody)
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 120 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("local video service request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("local video service error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	// Flexible response:
+	// - {"video_id":"...","status":"processing","video_url":"..."}
+	// - or {"id":"...","status":"...","output":["..."]}
+	var apiResp struct {
+		VideoID  string   `json:"video_id"`
+		Status   string   `json:"status"`
+		VideoURL string   `json:"video_url"`
+		ID       string   `json:"id"`
+		Output   []string `json:"output"`
+	}
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return nil, fmt.Errorf("failed to parse local video response: %w", err)
+	}
+
+	videoID := apiResp.VideoID
+	if videoID == "" {
+		videoID = apiResp.ID
+	}
+	videoURL := apiResp.VideoURL
+	if videoURL == "" && len(apiResp.Output) > 0 {
+		videoURL = apiResp.Output[0]
+	}
+	status := apiResp.Status
+	if status == "" {
+		status = "processing"
+	}
+
+	return &VideoGenerationResult{
+		VideoID:    videoID,
+		VideoURL:   videoURL,
+		Provider:   ProviderLocal,
+		Status:     status,
+		Duration:   req.Duration,
+		Resolution: "",
+		CreatedAt:  time.Now(),
+	}, nil
 }
 
 // generateWithRunway generates video using Runway API
@@ -215,6 +291,11 @@ func (s *VideoService) PollVideoStatus(ctx context.Context, videoID string, prov
 	case ProviderPika:
 		endpoint = fmt.Sprintf("https://api.pika.art/v1/generations/%s", videoID)
 		authHeader = "Bearer " + s.cfg.AI.PikaAPIKey
+	case ProviderLocal:
+		if s.cfg.AI.VideoServiceURL == "" {
+			return nil, fmt.Errorf("AI_VIDEO_SERVICE_URL is not configured")
+		}
+		endpoint = fmt.Sprintf("%s/%s", strings.TrimRight(s.cfg.AI.VideoServiceURL, "/"), videoID)
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", provider)
 	}
@@ -224,7 +305,9 @@ func (s *VideoService) PollVideoStatus(ctx context.Context, videoID string, prov
 		return nil, err
 	}
 
-	httpReq.Header.Set("Authorization", authHeader)
+	if authHeader != "" {
+		httpReq.Header.Set("Authorization", authHeader)
+	}
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(httpReq)

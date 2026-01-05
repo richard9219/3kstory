@@ -142,19 +142,38 @@ make build
 make dev
 ```
 
-### 方式 3：启动前端
+### 方式 3：本地端到端验证（⭐ 推荐先用这个）
+
+这是一个**无需 GPU**、**最小依赖**的完整验证方案，使用 ffmpeg 本地生成视频。适合快速验证整个系统链路。
 
 ```bash
-cd frontend
+# 1. 安装 ffmpeg（第一次）
+brew install ffmpeg
 
-# 安装依赖
-npm install
+# 2. 启动所有服务（包括后端、视频生成、数据库）
+bash start-local-e2e.sh
 
-# 开发服务器
-npm run dev
+# 3. 在另一个终端运行完整 E2E 测试
+bash e2e-test.sh
+
+# 🎉 完成！查看输出的 mp4 URL，在浏览器中预览视频
 ```
 
-**✅ 前端访问**：http://localhost:3000
+**完整链路验证**：
+```
+用户注册 → 登录 → 创建项目 → 生成场景 → 视频生成 → 获取 mp4 URL
+   ✅       ✅       ✅        ✅        ✅        ✅
+```
+
+详细文档：
+- [QUICKSTART.md](./QUICKSTART.md) - 30 秒快速参考
+- [docs/local-e2e/START_HERE.md](./docs/local-e2e/START_HERE.md) - 本地 E2E 文档入口
+- [docs/local-e2e/LOCAL_E2E_GUIDE.md](./docs/local-e2e/LOCAL_E2E_GUIDE.md) - 完整详细指南
+
+**快速测试视频生成服务**（跳过认证流程）：
+```bash
+bash quick-video-test.sh
+```
 
 ---
 
