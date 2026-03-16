@@ -1,0 +1,100 @@
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: 3kstory-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/aws-single.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+      - backend
+      - video-service
+    restart: unless-stopped
+    networks:
+      - app-net
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost
+    container_name: 3kstory-frontend
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    restart: unless-stopped
+    networks:
+      - app-net
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: 3kstory-backend
+    env_file:
+      - path: ../backend/.env
+        required: false
+    environment:
+      - ENV=production
+      - PORT=8080
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - AI_VIDEO_SERVICE_URL=http://video-service:8003/v1/generate
+    depends_on:
+      - postgres
+      - redis
+      - video-service
+    restart: unless-stopped
+    networks:
+      - app-net
+
+  video-service:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.video-service
+    container_name: 3kstory-video-service
+    environment:
+      - LOCAL_VIDEO_PORT=8003
+      - LOCAL_VIDEO_OUTPUT_DIR=/data/videos
+      - LOCAL_VIDEO_PUBLIC_BASE=http://localhost/files
+    volumes:
+      - video_data:/data/videos
+    restart: unless-stopped
+    networks:
+      - app-net
+
+  postgres:
+    image: postgres:14-alpine
+    container_name: 3kstory-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      POSTGRES_DB: ${POSTGRES_DB:-3kstory}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - app-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: 3kstory-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - app-net
+
+volumes:
+  postgres_data:
+  redis_data:
+  video_data:
+
+networks:
+  app-net:
+    driver: bridge
