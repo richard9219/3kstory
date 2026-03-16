@@ -48,5 +48,6 @@ func autoMigrate(db *gorm.DB) error {
 		&models.Project{},
 		&models.Scene{},
 		&models.AITask{},
+		&models.PlatformAccount{},
 	)
 }

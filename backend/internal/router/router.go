@@ -14,10 +14,12 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, rdb *redis.Client, cfg *config.Conf
 	aiService := services.NewAIService(cfg)
 	projectService := services.NewProjectService(db, aiService)
 	videoService := services.NewVideoService(cfg)
+	platformService := services.NewPlatformService(db, cfg, &services.RedisAdapter{Client: rdb})
 
 	authHandler := handlers.NewAuthHandler(db, cfg)
 	projectHandler := handlers.NewProjectHandler(projectService, db)
 	videoHandler := handlers.NewVideoHandler(videoService, projectService)
+	platformHandler := handlers.NewPlatformHandler(platformService)
 
 	v1 := r.Group("/api/v1")
 	{
@@ -27,6 +29,13 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, rdb *redis.Client, cfg *config.Conf
 			auth.POST("/login", authHandler.Login)
 		}
 
+		// 平台相关：已配置列表与 OAuth 回调无需登录
+		platformsPublic := v1.Group("/platforms")
+		{
+			platformsPublic.GET("/configured", platformHandler.ConfiguredPlatforms)
+			platformsPublic.GET("/:platform/callback", platformHandler.OAuthCallback)
+		}
+
 		authorized := v1.Group("")
 		authorized.Use(middleware.AuthRequired(cfg))
 		{
@@ -34,6 +43,13 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, rdb *redis.Client, cfg *config.Conf
 			{
 				users.GET("/me", authHandler.GetProfile)
 				users.PUT("/me", authHandler.UpdateProfile)
+			}
+
+			platforms := authorized.Group("/platforms")
+			{
+				platforms.GET("", platformHandler.ListPlatforms)
+				platforms.GET("/:platform/authorize", platformHandler.GetAuthorizeURL)
+				platforms.DELETE("/:platform", platformHandler.Disconnect)
 			}
 
 			projects := authorized.Group("/projects")

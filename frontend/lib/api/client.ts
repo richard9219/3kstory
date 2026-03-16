@@ -105,3 +105,15 @@ export const videoAPI = {
   cancel: (projectId: number, videoId: string) =>
     apiClient.delete(`/projects/${projectId}/video/${videoId}`),
 };
+
+// Platform API（里程碑一：第三方平台账号绑定）
+export const platformAPI = {
+  list: () =>
+    apiClient.get<{ data: import('@/types').PlatformAccount[] }>('/platforms'),
+  configured: () =>
+    apiClient.get<{ data: import('@/types').PlatformKind[] }>('/platforms/configured'),
+  getAuthorizeUrl: (platform: import('@/types').PlatformKind) =>
+    apiClient.get<{ authorize_url: string }>(`/platforms/${platform}/authorize`),
+  disconnect: (platform: import('@/types').PlatformKind) =>
+    apiClient.delete(`/platforms/${platform}`),
+};

@@ -2,7 +2,8 @@
 
 import { motion } from 'framer-motion';
 import { useState } from 'react';
-import { PlayCircle, Sparkles, Zap, Video } from 'lucide-react';
+import Link from 'next/link';
+import { PlayCircle, Sparkles, Zap, Video, Link2 } from 'lucide-react';
 
 export default function HeroSection() {
   const [isHovered, setIsHovered] = useState(false);
@@ -113,6 +114,17 @@ export default function HeroSection() {
               观看演示
             </motion.button>
           </motion.div>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="mt-4 text-gray-400 text-sm"
+          >
+            <Link href="/platforms" className="inline-flex items-center gap-1.5 hover:text-white transition">
+              <Link2 className="w-4 h-4" />
+              绑定抖音 / 小红书 / B站 / 微博
+            </Link>
+          </motion.p>
 
           {/* Stats */}
           <motion.div

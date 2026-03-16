@@ -79,3 +79,14 @@ export interface AuthResponse {
   token: string;
   user: User;
 }
+
+// 第三方平台账号（里程碑一）
+export type PlatformKind = 'douyin' | 'xiaohongshu' | 'bilibili' | 'weibo';
+
+export interface PlatformAccount {
+  id: number;
+  platform: PlatformKind;
+  nickname: string;
+  avatar_url: string;
+  created_at: string;
+}

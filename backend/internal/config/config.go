@@ -6,13 +6,31 @@ import (
 )
 
 type Config struct {
-	Env      string
-	Port     string
+	Env         string
+	Port        string
+	BaseURL     string // 后端对外 BaseURL，用于 OAuth redirect_uri
+	FrontendURL string // 前端地址，OAuth 成功后跳转
 	Database DatabaseConfig
 	Redis    RedisConfig
 	JWT      JWTConfig
 	OSS      OSSConfig
 	AI       AIConfig
+	Platform PlatformConfig
+}
+
+// PlatformConfig 各视频平台 OAuth 配置
+type PlatformConfig struct {
+	Douyin       PlatformOAuthItem
+	Xiaohongshu  PlatformOAuthItem
+	Bilibili     PlatformOAuthItem
+	Weibo        PlatformOAuthItem
+}
+
+type PlatformOAuthItem struct {
+	ClientID     string
+	ClientSecret string
+	RedirectURI  string
+	Scope        string
 }
 
 type DatabaseConfig struct {
@@ -71,8 +89,10 @@ func Load() *Config {
 	ollamaTimeout, _ := strconv.Atoi(getEnv("OLLAMA_TIMEOUT", "60"))
 
 	return &Config{
-		Env:  getEnv("ENV", "development"),
-		Port: getEnv("PORT", "8080"),
+		Env:         getEnv("ENV", "development"),
+		Port:        getEnv("PORT", "8080"),
+		BaseURL:     getEnv("BASE_URL", "http://localhost:8080"),
+		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:3000"),
 		Database: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
 			Port:     getEnv("DB_PORT", "5432"),
@@ -115,6 +135,32 @@ func Load() *Config {
 			ReviewServiceURL: getEnv("AI_REVIEW_SERVICE_URL", ""),
 			RunwayAPIKey:     getEnv("RUNWAY_API_KEY", ""),
 			PikaAPIKey:       getEnv("PIKA_API_KEY", ""),
+		},
+		Platform: PlatformConfig{
+			Douyin: PlatformOAuthItem{
+				ClientID:     getEnv("DOUYIN_CLIENT_KEY", ""),
+				ClientSecret: getEnv("DOUYIN_CLIENT_SECRET", ""),
+				RedirectURI:  getEnv("DOUYIN_REDIRECT_URI", ""),
+				Scope:        getEnv("DOUYIN_SCOPE", "user_info,video.list,video.publish"),
+			},
+			Xiaohongshu: PlatformOAuthItem{
+				ClientID:     getEnv("XIAOHONGSHU_CLIENT_ID", ""),
+				ClientSecret: getEnv("XIAOHONGSHU_CLIENT_SECRET", ""),
+				RedirectURI:  getEnv("XIAOHONGSHU_REDIRECT_URI", ""),
+				Scope:        getEnv("XIAOHONGSHU_SCOPE", "user_info,note_publish"),
+			},
+			Bilibili: PlatformOAuthItem{
+				ClientID:     getEnv("BILIBILI_CLIENT_ID", ""),
+				ClientSecret: getEnv("BILIBILI_CLIENT_SECRET", ""),
+				RedirectURI:  getEnv("BILIBILI_REDIRECT_URI", ""),
+				Scope:        getEnv("BILIBILI_SCOPE", ""),
+			},
+			Weibo: PlatformOAuthItem{
+				ClientID:     getEnv("WEIBO_CLIENT_ID", ""),
+				ClientSecret: getEnv("WEIBO_CLIENT_SECRET", ""),
+				RedirectURI:  getEnv("WEIBO_REDIRECT_URI", ""),
+				Scope:        getEnv("WEIBO_SCOPE", ""),
+			},
 		},
 	}
 }
