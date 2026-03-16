@@ -20,12 +20,21 @@ import (
 )
 
 type generateRequest struct {
-	Prompt      string `json:"prompt"`
-	ImageURL    string `json:"image_url"`
-	Duration    int    `json:"duration"`
-	AspectRatio string `json:"aspect_ratio"`
-	SceneID     uint   `json:"scene_id"`
-	ProjectID   uint   `json:"project_id"`
+	Prompt      string            `json:"prompt"`
+	ImageURL    string            `json:"image_url"`
+	Duration    int               `json:"duration"`
+	AspectRatio string            `json:"aspect_ratio"`
+	SceneID     uint              `json:"scene_id"`
+	ProjectID   uint              `json:"project_id"`
+	Mode        string            `json:"mode"`
+	Segments    []generateSegment `json:"segments"`
+}
+
+type generateSegment struct {
+	Title             string `json:"title"`
+	NarrationText     string `json:"narration_text"`
+	EstimatedDuration int    `json:"estimated_duration"`
+	AudioURL          string `json:"audio_url"`
 }
 
 type generateResponse struct {
@@ -115,12 +124,19 @@ func (s *server) handleGenerate(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)
 	defer cancel()
-	if err := renderVideo(ctx, renderParams{Prompt: req.Prompt, ImageURL: strings.TrimSpace(req.ImageURL), W: wpx, H: hpx, Seconds: dur, OutPath: outFile}); err != nil {
+	renderReq := renderParams{Prompt: req.Prompt, ImageURL: strings.TrimSpace(req.ImageURL), W: wpx, H: hpx, Seconds: dur, OutPath: outFile}
+	var renderErr error
+	if strings.TrimSpace(req.Mode) == "narration" && len(req.Segments) > 0 {
+		renderErr = renderNarrationVideo(ctx, renderReq, req.Segments)
+	} else {
+		renderErr = renderVideo(ctx, renderReq)
+	}
+	if renderErr != nil {
 		s.mu.Lock()
 		job.Status = "failed"
-		job.Error = err.Error()
+		job.Error = renderErr.Error()
 		s.mu.Unlock()
-		writeJSON(w, http.StatusInternalServerError, generateResponse{VideoID: id, Status: "failed", Message: err.Error()})
+		writeJSON(w, http.StatusInternalServerError, generateResponse{VideoID: id, Status: "failed", Message: renderErr.Error()})
 		return
 	}
 
@@ -200,6 +216,112 @@ func renderVideo(ctx context.Context, p renderParams) error {
 	return nil
 }
 
+func renderNarrationVideo(ctx context.Context, p renderParams, segments []generateSegment) error {
+	if p.Seconds <= 0 {
+		return errors.New("invalid duration")
+	}
+
+	segmentFiles := make([]string, 0, len(segments))
+	defer func() {
+		for _, f := range segmentFiles {
+			_ = os.Remove(f)
+		}
+	}()
+
+	total := 0
+	for i := range segments {
+		d := segments[i].EstimatedDuration
+		if d <= 0 {
+			d = 6
+		}
+		total += d
+	}
+	if total == 0 {
+		total = p.Seconds
+	}
+
+	filterParts := make([]string, 0, len(segments)+1)
+	start := 0
+	for i := range segments {
+		d := segments[i].EstimatedDuration
+		if d <= 0 {
+			d = 6
+		}
+		end := start + d
+		if end > p.Seconds {
+			end = p.Seconds
+		}
+		if end <= start {
+			break
+		}
+
+		line := strings.TrimSpace(segments[i].Title)
+		if line != "" {
+			line += "："
+		}
+		line += strings.TrimSpace(segments[i].NarrationText)
+		if line == "" {
+			continue
+		}
+
+		tmp, err := os.CreateTemp("", "3kstory-seg-*.txt")
+		if err != nil {
+			return fmt.Errorf("failed to create segment text file: %w", err)
+		}
+		if _, err := tmp.WriteString(line); err != nil {
+			_ = tmp.Close()
+			return fmt.Errorf("failed to write segment text: %w", err)
+		}
+		if err := tmp.Close(); err != nil {
+			return fmt.Errorf("failed to close segment text file: %w", err)
+		}
+		segmentFiles = append(segmentFiles, tmp.Name())
+
+		filterParts = append(filterParts, fmt.Sprintf("drawtext=%stextfile=%s:fontcolor=white:fontsize=34:box=1:boxcolor=black@0.6:boxborderw=14:x=40:y=h-180:line_spacing=10:enable='between(t,%d,%d)'", drawTextFontOption(), tmp.Name(), start, end))
+		start = end
+		if start >= p.Seconds {
+			break
+		}
+	}
+
+	if len(filterParts) == 0 {
+		return renderVideo(ctx, p)
+	}
+	filterParts = append(filterParts, "format=yuv420p")
+	vf := strings.Join(filterParts, ",")
+
+	args := []string{"-y"}
+	if p.ImageURL != "" {
+		imgPath, err := downloadToTemp(ctx, p.ImageURL)
+		if err != nil {
+			return err
+		}
+		defer os.Remove(imgPath)
+		args = append(args, "-loop", "1", "-i", imgPath, "-t", strconv.Itoa(p.Seconds))
+		vf = fmt.Sprintf("scale=%d:%d,%s", p.W, p.H, vf)
+	} else {
+		args = append(args, "-f", "lavfi", "-i", fmt.Sprintf("color=c=black:s=%dx%d:d=%d", p.W, p.H, p.Seconds))
+	}
+	args = append(args, "-vf", vf, "-r", "30", p.OutPath)
+
+	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("ffmpeg narration failed: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	if _, err := os.Stat(p.OutPath); err != nil {
+		return fmt.Errorf("output not created: %w", err)
+	}
+	return nil
+}
+
+func drawTextFontOption() string {
+	if font := findFontFile(); font != "" {
+		return "fontfile=" + font + ":"
+	}
+	return ""
+}
+
 func downloadToTemp(ctx context.Context, url string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -234,10 +356,7 @@ func downloadToTemp(ctx context.Context, url string) (string, error) {
 }
 
 func drawTextFilter(textPath string) string {
-	fontOpt := ""
-	if font := findFontFile(); font != "" {
-		fontOpt = "fontfile=" + font + ":"
-	}
+	fontOpt := drawTextFontOption()
 	return fmt.Sprintf(
 		"%stextfile=%s:fontcolor=white:fontsize=36:box=1:boxcolor=black@0.55:boxborderw=18:x=40:y=40:line_spacing=10",
 		fontOpt,

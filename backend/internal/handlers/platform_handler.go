@@ -44,6 +44,10 @@ func (h *PlatformHandler) GetAuthorizeURL(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid platform"})
 		return
 	}
+	if platform == models.PlatformXiaohongshu {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "xiaohongshu is not available in milestone 1 yet"})
+		return
+	}
 	userID, _ := c.Get("user_id")
 	url, err := h.platformService.GetAuthorizeURL(platform, userID.(uint))
 	if err != nil {
@@ -58,13 +62,13 @@ func (h *PlatformHandler) GetAuthorizeURL(c *gin.Context) {
 func (h *PlatformHandler) OAuthCallback(c *gin.Context) {
 	platform := c.Param("platform")
 	if !isValidPlatform(platform) {
-		c.Redirect(http.StatusFound, "/platform-bound?ok=0&err=invalid_platform")
+		c.Redirect(http.StatusFound, h.platformService.PlatformBoundURL(false, "invalid_platform"))
 		return
 	}
 	code := c.Query("code")
 	state := c.Query("state")
 	if code == "" || state == "" {
-		c.Redirect(http.StatusFound, "/platform-bound?ok=0&err=missing_code_or_state")
+		c.Redirect(http.StatusFound, h.platformService.PlatformBoundURL(false, "missing_code_or_state"))
 		return
 	}
 	redirectSuccess, redirectFail, err := h.platformService.ExchangeCode(platform, code, state)

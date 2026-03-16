@@ -13,13 +13,18 @@ import (
 func SetupRoutes(r *gin.Engine, db *gorm.DB, rdb *redis.Client, cfg *config.Config) {
 	aiService := services.NewAIService(cfg)
 	projectService := services.NewProjectService(db, aiService)
-	videoService := services.NewVideoService(cfg)
+	videoService := services.NewVideoService(cfg, db)
+	ttsService := services.NewTTSService()
+	narrationService := services.NewNarrationService(db, aiService, videoService, ttsService)
 	platformService := services.NewPlatformService(db, cfg, &services.RedisAdapter{Client: rdb})
+	analyticsService := services.NewAnalyticsService(db)
 
 	authHandler := handlers.NewAuthHandler(db, cfg)
 	projectHandler := handlers.NewProjectHandler(projectService, db)
 	videoHandler := handlers.NewVideoHandler(videoService, projectService)
 	platformHandler := handlers.NewPlatformHandler(platformService)
+	narrationHandler := handlers.NewNarrationHandler(projectService, narrationService)
+	analyticsHandler := handlers.NewAnalyticsHandler(analyticsService, platformService)
 
 	v1 := r.Group("/api/v1")
 	{
@@ -39,6 +44,12 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, rdb *redis.Client, cfg *config.Conf
 		authorized := v1.Group("")
 		authorized.Use(middleware.AuthRequired(cfg))
 		{
+			analytics := authorized.Group("/analytics")
+			{
+				analytics.GET("/summary", analyticsHandler.GetSummary)
+				analytics.GET("/videos", analyticsHandler.ListVideos)
+			}
+
 			users := authorized.Group("/users")
 			{
 				users.GET("/me", authHandler.GetProfile)
@@ -64,6 +75,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, rdb *redis.Client, cfg *config.Conf
 
 				// Video generation endpoints (Milestone 1.1)
 				projects.POST("/:id/generate-video", videoHandler.GenerateVideo)
+				projects.POST("/:id/generate-narration", narrationHandler.GenerateNarrationVideo)
 				projects.POST("/:id/video-status", videoHandler.GetVideoStatus)
 				projects.GET("/:id/videos", videoHandler.ListVideos)
 				projects.DELETE("/:id/video/:videoID", videoHandler.CancelVideoGeneration)

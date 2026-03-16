@@ -32,7 +32,7 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401) {
       // Token expired or invalid
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      window.location.href = '/';
     }
     return Promise.reject(error);
   }
@@ -82,16 +82,28 @@ export const videoAPI = {
   generate: (projectId: number, data: {
     scene_id: number;
     prompt: string;
-    provider: 'runway' | 'pika';
+    provider: 'runway' | 'pika' | 'local';
     image_url?: string;
     duration?: number;
     aspect_ratio?: '16:9' | '9:16';
   }) =>
     apiClient.post(`/projects/${projectId}/generate-video`, data),
+
+  generateNarration: (projectId: number, data: {
+    movie_title: string;
+    synopsis?: string;
+    style?: string;
+    target_duration?: number;
+    voice?: string;
+    speed?: number;
+    provider?: 'runway' | 'pika' | 'local';
+    aspect_ratio?: '16:9' | '9:16';
+  }) =>
+    apiClient.post(`/projects/${projectId}/generate-narration`, data),
     
   getStatus: (projectId: number, data: {
     video_id: string;
-    provider: 'runway' | 'pika';
+    provider: 'runway' | 'pika' | 'local';
   }) =>
     apiClient.post(`/projects/${projectId}/video-status`, data),
     
@@ -116,4 +128,12 @@ export const platformAPI = {
     apiClient.get<{ authorize_url: string }>(`/platforms/${platform}/authorize`),
   disconnect: (platform: import('@/types').PlatformKind) =>
     apiClient.delete(`/platforms/${platform}`),
+};
+
+// Analytics API（里程碑一：运营看板）
+export const analyticsAPI = {
+  summary: () =>
+    apiClient.get<{ data: import('@/types').AnalyticsSummary }>('/analytics/summary'),
+  videos: (params?: { limit?: number }) =>
+    apiClient.get<import('@/types').ListResponse<import('@/types').VideoTask>>('/analytics/videos', { params }),
 };

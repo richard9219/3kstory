@@ -3,8 +3,10 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/richard9219/3kstory/internal/models"
 	"github.com/richard9219/3kstory/internal/services"
 )
 
@@ -102,7 +104,41 @@ func (h *VideoHandler) GenerateVideo(c *gin.Context) {
 		return
 	}
 
+	var completedAt *time.Time
+	if result.Status == "completed" {
+		now := time.Now()
+		completedAt = &now
+	}
+
+	task := &services.GenerateVideoTask{
+		UserID:    userID.(uint),
+		ProjectID: uint(projectID),
+		SceneID:   req.SceneID,
+		TaskType:  "generate_video",
+		Title:     req.Prompt,
+		Provider:  string(result.Provider),
+		VideoID:   result.VideoID,
+		Status:    result.Status,
+		VideoURL:  result.VideoURL,
+		InputData: models.JSONMap{
+			"prompt":       req.Prompt,
+			"provider":     req.Provider,
+			"image_url":    req.ImageURL,
+			"duration":     req.Duration,
+			"aspect_ratio": req.AspectRatio,
+		},
+		CompletedAt: completedAt,
+	}
+	if err := h.videoService.SaveVideoTask(c, task); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to save video task",
+			"details": err.Error(),
+		})
+		return
+	}
+
 	c.JSON(http.StatusAccepted, GenerateVideoResponse{
+		TaskID:   task.ID,
 		VideoID:  result.VideoID,
 		Status:   result.Status,
 		Provider: string(result.Provider),

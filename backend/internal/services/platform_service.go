@@ -36,6 +36,21 @@ func NewPlatformService(db *gorm.DB, cfg *config.Config, rdb RedisStore) *Platfo
 	return &PlatformService{db: db, cfg: cfg, rdb: rdb}
 }
 
+func (s *PlatformService) PlatformBoundURL(ok bool, errMsg string) string {
+	frontBase := strings.TrimSuffix(s.cfg.FrontendURL, "/")
+	if frontBase == "" {
+		frontBase = strings.TrimSuffix(s.cfg.BaseURL, "/")
+	}
+	base := frontBase + "/platform-bound"
+	if ok {
+		return base + "?ok=1"
+	}
+	if strings.TrimSpace(errMsg) == "" {
+		return base + "?ok=0"
+	}
+	return base + "?ok=0&err=" + url.QueryEscape(errMsg)
+}
+
 // GetOAuthConfig 返回指定平台的 OAuth 配置（用于生成授权链接）
 func (s *PlatformService) GetOAuthConfig(platform string) (clientID, redirectURI, scope string, ok bool) {
 	base := strings.TrimSuffix(s.cfg.BaseURL, "/")
@@ -314,13 +329,13 @@ func (s *PlatformService) exchangeDouyin(code string, userID uint) (*models.Plat
 	defer resp.Body.Close()
 	var out struct {
 		Data struct {
-			AccessToken   string `json:"access_token"`
-			RefreshToken  string `json:"refresh_token"`
-			ExpiresIn     int64  `json:"expires_in"`
-			OpenID        string `json:"open_id"`
-			UnionID       string `json:"union_id"`
-			ErrorCode     int64  `json:"error_code"`
-			Description   string `json:"description"`
+			AccessToken  string `json:"access_token"`
+			RefreshToken string `json:"refresh_token"`
+			ExpiresIn    int64  `json:"expires_in"`
+			OpenID       string `json:"open_id"`
+			UnionID      string `json:"union_id"`
+			ErrorCode    int64  `json:"error_code"`
+			Description  string `json:"description"`
 		} `json:"data"`
 	}
 	if err = json.NewDecoder(resp.Body).Decode(&out); err != nil {
@@ -370,9 +385,6 @@ func (s *PlatformService) ConfiguredPlatforms() []string {
 	var out []string
 	if s.cfg.Platform.Douyin.ClientID != "" && s.cfg.Platform.Douyin.ClientSecret != "" {
 		out = append(out, models.PlatformDouyin)
-	}
-	if s.cfg.Platform.Xiaohongshu.ClientID != "" && s.cfg.Platform.Xiaohongshu.ClientSecret != "" {
-		out = append(out, models.PlatformXiaohongshu)
 	}
 	if s.cfg.Platform.Bilibili.ClientID != "" && s.cfg.Platform.Bilibili.ClientSecret != "" {
 		out = append(out, models.PlatformBilibili)
@@ -483,11 +495,11 @@ func (s *PlatformService) refreshDouyinToken(acc *models.PlatformAccount) error 
 	defer resp.Body.Close()
 	var out struct {
 		Data struct {
-			AccessToken   string `json:"access_token"`
-			RefreshToken  string `json:"refresh_token"`
-			ExpiresIn     int64  `json:"expires_in"`
-			ErrorCode     int64  `json:"error_code"`
-			Description   string `json:"description"`
+			AccessToken  string `json:"access_token"`
+			RefreshToken string `json:"refresh_token"`
+			ExpiresIn    int64  `json:"expires_in"`
+			ErrorCode    int64  `json:"error_code"`
+			Description  string `json:"description"`
 		} `json:"data"`
 	}
 	if err = json.NewDecoder(resp.Body).Decode(&out); err != nil {
@@ -577,8 +589,8 @@ func (s *PlatformService) fetchBilibiliUserInfo(accessToken string, mid int64) (
 		Code    int    `json:"code"`
 		Message string `json:"message"`
 		Data    struct {
-			Name    string `json:"name"`
-			Face    string `json:"face"`
+			Name string `json:"name"`
+			Face string `json:"face"`
 		} `json:"data"`
 	}
 	if err = json.NewDecoder(resp.Body).Decode(&out); err != nil {

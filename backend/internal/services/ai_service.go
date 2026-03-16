@@ -245,3 +245,81 @@ type CharDetail struct {
 	Name    string `json:"name"`
 	Emotion string `json:"emotion"`
 }
+
+type NarrationScriptRequest struct {
+	MovieTitle     string
+	Synopsis       string
+	Style          string
+	TargetDuration int
+}
+
+type NarrationSegment struct {
+	Title             string `json:"title"`
+	NarrationText     string `json:"narration_text"`
+	EstimatedDuration int    `json:"estimated_duration"`
+}
+
+type NarrationScriptResult struct {
+	Title    string             `json:"title"`
+	Style    string             `json:"style"`
+	Segments []NarrationSegment `json:"segments"`
+}
+
+// GenerateNarrationScript 里程碑 1 版本：复用现有剧本能力组装解说分段。
+func (s *AIService) GenerateNarrationScript(ctx context.Context, req NarrationScriptRequest) (*NarrationScriptResult, error) {
+	if req.Style == "" {
+		req.Style = "深度分析"
+	}
+	if req.TargetDuration <= 0 {
+		req.TargetDuration = 90
+	}
+
+	prompt := fmt.Sprintf("请为《%s》生成%s风格的电影/电视剧解说稿，目标时长约%d秒。剧情简介：%s", req.MovieTitle, req.Style, req.TargetDuration, req.Synopsis)
+	script, err := s.GenerateScript(ctx, prompt)
+	if err != nil {
+		segments := []NarrationSegment{{
+			Title:             "开场",
+			NarrationText:     fmt.Sprintf("今天我们来解说《%s》。%s", req.MovieTitle, req.Synopsis),
+			EstimatedDuration: req.TargetDuration,
+		}}
+		return &NarrationScriptResult{Title: req.MovieTitle + "解说", Style: req.Style, Segments: segments}, nil
+	}
+
+	segments := make([]NarrationSegment, 0, len(script.Scenes))
+	each := req.TargetDuration
+	if len(script.Scenes) > 0 {
+		each = req.TargetDuration / len(script.Scenes)
+		if each < 8 {
+			each = 8
+		}
+	}
+	for _, sc := range script.Scenes {
+		text := strings.TrimSpace(sc.Dialogue)
+		if text == "" {
+			text = fmt.Sprintf("场景发生在%s，围绕%s展开。", sc.Location, sc.Title)
+		}
+		segments = append(segments, NarrationSegment{
+			Title:             sc.Title,
+			NarrationText:     text,
+			EstimatedDuration: each,
+		})
+	}
+	if len(segments) == 0 {
+		segments = append(segments, NarrationSegment{
+			Title:             "开场",
+			NarrationText:     fmt.Sprintf("今天我们来解说《%s》。", req.MovieTitle),
+			EstimatedDuration: req.TargetDuration,
+		})
+	}
+
+	title := script.Title
+	if strings.TrimSpace(title) == "" {
+		title = req.MovieTitle + "解说"
+	}
+
+	return &NarrationScriptResult{
+		Title:    title,
+		Style:    req.Style,
+		Segments: segments,
+	}, nil
+}

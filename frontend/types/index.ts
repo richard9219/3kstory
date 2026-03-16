@@ -40,16 +40,19 @@ export interface Scene {
 // Video generation types
 export interface VideoTask {
   id: number;
+  user_id: number;
   project_id: number;
-  scene_id: number;
+  scene_id?: number;
+  task_type?: 'generate_video' | 'narration_video';
+  title?: string;
   video_id: string;
-  provider: 'runway' | 'pika';
+  provider: 'runway' | 'pika' | 'local';
   status: 'pending' | 'processing' | 'completed' | 'failed';
   video_url?: string;
   error_msg?: string;
+  completed_at?: string;
   created_at: string;
   updated_at: string;
-  completed_at?: string;
 }
 
 // API response types
@@ -89,4 +92,13 @@ export interface PlatformAccount {
   nickname: string;
   avatar_url: string;
   created_at: string;
+}
+
+export interface AnalyticsSummary {
+  total_projects: number;
+  total_generated_videos: number;
+  total_completed_videos: number;
+  total_interactions: number;
+  bound_platforms: PlatformAccount[];
+  configured_platforms: PlatformKind[];
 }

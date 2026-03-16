@@ -120,10 +120,17 @@ export default function HeroSection() {
             transition={{ delay: 0.5 }}
             className="mt-4 text-gray-400 text-sm"
           >
-            <Link href="/platforms" className="inline-flex items-center gap-1.5 hover:text-white transition">
-              <Link2 className="w-4 h-4" />
-              绑定抖音 / 小红书 / B站 / 微博
-            </Link>
+            <span className="inline-flex items-center gap-3">
+              <Link href="/platforms" className="inline-flex items-center gap-1.5 hover:text-white transition">
+                <Link2 className="w-4 h-4" />
+                绑定抖音 / 小红书 / B站 / 微博
+              </Link>
+              <span className="text-gray-600">|</span>
+              <Link href="/dashboard" className="inline-flex items-center gap-1.5 hover:text-white transition">
+                <Sparkles className="w-4 h-4" />
+                查看运营看板
+              </Link>
+            </span>
           </motion.p>
 
           {/* Stats */}

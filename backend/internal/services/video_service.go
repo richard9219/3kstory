@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/richard9219/3kstory/internal/config"
+	"github.com/richard9219/3kstory/internal/models"
+	"gorm.io/gorm"
 )
 
 // VideoProvider defines which video generation service to use
@@ -25,21 +27,31 @@ const (
 // VideoService handles video generation via third-party APIs
 type VideoService struct {
 	cfg *config.Config
+	db  *gorm.DB
 }
 
-func NewVideoService(cfg *config.Config) *VideoService {
-	return &VideoService{cfg: cfg}
+func NewVideoService(cfg *config.Config, db *gorm.DB) *VideoService {
+	return &VideoService{cfg: cfg, db: db}
 }
 
 // VideoGenerationRequest represents a video generation request
 type VideoGenerationRequest struct {
-	ProjectID   uint
-	SceneID     uint
-	Prompt      string
-	Provider    VideoProvider
-	ImageURL    string // for image-to-video
-	Duration    int    // seconds (1-60)
-	AspectRatio string // "16:9" or "9:16"
+	ProjectID         uint
+	SceneID           uint
+	Prompt            string
+	Provider          VideoProvider
+	ImageURL          string // for image-to-video
+	Duration          int    // seconds (1-60)
+	AspectRatio       string // "16:9" or "9:16"
+	Mode              string
+	NarrationSegments []LocalNarrationSegment
+}
+
+type LocalNarrationSegment struct {
+	Title             string `json:"title"`
+	NarrationText     string `json:"narration_text"`
+	EstimatedDuration int    `json:"estimated_duration"`
+	AudioURL          string `json:"audio_url,omitempty"`
 }
 
 // VideoGenerationResult represents the result of video generation
@@ -81,6 +93,12 @@ func (s *VideoService) generateWithLocalService(ctx context.Context, req *VideoG
 		"aspect_ratio": req.AspectRatio,
 		"scene_id":     req.SceneID,
 		"project_id":   req.ProjectID,
+	}
+	if strings.TrimSpace(req.Mode) != "" {
+		requestBody["mode"] = req.Mode
+	}
+	if len(req.NarrationSegments) > 0 {
+		requestBody["segments"] = req.NarrationSegments
 	}
 
 	jsonData, _ := json.Marshal(requestBody)
@@ -380,9 +398,16 @@ func (s *VideoService) FailoverGenerate(ctx context.Context, req *VideoGeneratio
 type GenerateVideoTask struct {
 	ID          uint
 	ProjectID   uint
+	UserID      uint
 	SceneID     uint
+	TaskType    string
+	Provider    string
+	VideoID     string
 	Status      string // pending, processing, completed, failed
+	Title       string
 	VideoURL    string
+	InputData   models.JSONMap
+	OutputData  models.JSONMap
 	ErrorMsg    string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
@@ -391,21 +416,101 @@ type GenerateVideoTask struct {
 
 // SaveVideoTask persists a video generation task
 func (s *VideoService) SaveVideoTask(ctx context.Context, task *GenerateVideoTask) error {
-	// This would be implemented with database persistence
-	// For now, placeholder
+	if s.db == nil {
+		return fmt.Errorf("database is not initialized")
+	}
+
+	var sceneID *uint
+	if task.SceneID > 0 {
+		s := task.SceneID
+		sceneID = &s
+	}
+
+	m := &models.VideoTask{
+		ID:          task.ID,
+		UserID:      task.UserID,
+		ProjectID:   task.ProjectID,
+		SceneID:     sceneID,
+		TaskType:    task.TaskType,
+		Title:       task.Title,
+		Provider:    task.Provider,
+		VideoID:     task.VideoID,
+		VideoURL:    task.VideoURL,
+		Status:      task.Status,
+		InputData:   task.InputData,
+		OutputData:  task.OutputData,
+		ErrorMsg:    task.ErrorMsg,
+		CompletedAt: task.CompletedAt,
+	}
+
+	if m.TaskType == "" {
+		m.TaskType = "generate_video"
+	}
+
+	if task.ID > 0 {
+		return s.db.WithContext(ctx).Model(&models.VideoTask{}).Where("id = ?", task.ID).Updates(m).Error
+	}
+	if err := s.db.WithContext(ctx).Create(m).Error; err != nil {
+		return err
+	}
+	task.ID = m.ID
+	task.CreatedAt = m.CreatedAt
+	task.UpdatedAt = m.UpdatedAt
 	return nil
 }
 
 // GetVideoTask retrieves a video generation task by ID
 func (s *VideoService) GetVideoTask(ctx context.Context, taskID uint) (*GenerateVideoTask, error) {
-	// This would be implemented with database retrieval
-	// For now, placeholder
-	return nil, nil
+	if s.db == nil {
+		return nil, fmt.Errorf("database is not initialized")
+	}
+	var m models.VideoTask
+	if err := s.db.WithContext(ctx).First(&m, taskID).Error; err != nil {
+		return nil, err
+	}
+	return mapVideoTaskModel(&m), nil
 }
 
 // ListVideoTasks retrieves all video tasks for a project
 func (s *VideoService) ListVideoTasks(ctx context.Context, projectID uint) ([]*GenerateVideoTask, error) {
-	// This would be implemented with database query
-	// For now, placeholder
-	return nil, nil
+	if s.db == nil {
+		return nil, fmt.Errorf("database is not initialized")
+	}
+	var list []models.VideoTask
+	err := s.db.WithContext(ctx).
+		Where("project_id = ?", projectID).
+		Order("created_at DESC").
+		Find(&list).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*GenerateVideoTask, 0, len(list))
+	for i := range list {
+		out = append(out, mapVideoTaskModel(&list[i]))
+	}
+	return out, nil
+}
+
+func mapVideoTaskModel(m *models.VideoTask) *GenerateVideoTask {
+	res := &GenerateVideoTask{
+		ID:          m.ID,
+		ProjectID:   m.ProjectID,
+		UserID:      m.UserID,
+		TaskType:    m.TaskType,
+		Provider:    m.Provider,
+		VideoID:     m.VideoID,
+		Title:       m.Title,
+		Status:      m.Status,
+		VideoURL:    m.VideoURL,
+		InputData:   m.InputData,
+		OutputData:  m.OutputData,
+		ErrorMsg:    m.ErrorMsg,
+		CreatedAt:   m.CreatedAt,
+		UpdatedAt:   m.UpdatedAt,
+		CompletedAt: m.CompletedAt,
+	}
+	if m.SceneID != nil {
+		res.SceneID = *m.SceneID
+	}
+	return res
 }
