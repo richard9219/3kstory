@@ -27,16 +27,18 @@ func NewNarrationService(db *gorm.DB, aiService *AIService, videoService *VideoS
 }
 
 type GenerateNarrationInput struct {
-	ProjectID      uint
-	UserID         uint
-	MovieTitle     string
-	Synopsis       string
-	Style          string
-	TargetDuration int
-	Voice          string
-	Speed          float64
-	AspectRatio    string
-	Provider       VideoProvider
+	ProjectID       uint
+	UserID          uint
+	MovieTitle      string
+	Synopsis        string
+	Style           string
+	TargetDuration  int
+	Voice           string
+	Speed           float64
+	AspectRatio     string
+	Provider        VideoProvider
+	SourceVideoPath string
+	SourceVideoURL  string
 }
 
 func (s *NarrationService) GenerateNarrationVideo(ctx context.Context, in GenerateNarrationInput) (*models.VideoTask, error) {
@@ -54,7 +56,7 @@ func (s *NarrationService) GenerateNarrationVideo(ctx context.Context, in Genera
 	videoSegments := make([]LocalNarrationSegment, 0, len(narration.Segments))
 	texts := make([]string, 0, len(narration.Segments))
 	for _, seg := range narration.Segments {
-		audioURL, synthErr := s.ttsService.Synthesize(seg.NarrationText, in.Voice, in.Speed)
+		audioPath, synthErr := s.ttsService.Synthesize(seg.NarrationText, in.Voice, in.Speed)
 		if synthErr != nil {
 			return nil, synthErr
 		}
@@ -62,13 +64,13 @@ func (s *NarrationService) GenerateNarrationVideo(ctx context.Context, in Genera
 			"title":              seg.Title,
 			"narration_text":     seg.NarrationText,
 			"estimated_duration": seg.EstimatedDuration,
-			"audio_url":          audioURL,
+			"audio_path":         audioPath,
 		})
 		videoSegments = append(videoSegments, LocalNarrationSegment{
 			Title:             seg.Title,
 			NarrationText:     seg.NarrationText,
 			EstimatedDuration: seg.EstimatedDuration,
-			AudioURL:          audioURL,
+			AudioPath:         audioPath,
 		})
 		texts = append(texts, seg.NarrationText)
 	}
@@ -81,6 +83,8 @@ func (s *NarrationService) GenerateNarrationVideo(ctx context.Context, in Genera
 		Duration:          in.TargetDuration,
 		AspectRatio:       in.AspectRatio,
 		Mode:              "narration",
+		SourceVideoPath:   in.SourceVideoPath,
+		SourceVideoURL:    in.SourceVideoURL,
 		NarrationSegments: videoSegments,
 	})
 	if err != nil {
@@ -103,14 +107,16 @@ func (s *NarrationService) GenerateNarrationVideo(ctx context.Context, in Genera
 		VideoURL:  videoResult.VideoURL,
 		Status:    videoResult.Status,
 		InputData: models.JSONMap{
-			"movie_title":      in.MovieTitle,
-			"synopsis":         in.Synopsis,
-			"style":            in.Style,
-			"target_duration":  in.TargetDuration,
-			"voice":            in.Voice,
-			"speed":            in.Speed,
-			"aspect_ratio":     in.AspectRatio,
-			"generated_prompt": videoPrompt,
+			"movie_title":       in.MovieTitle,
+			"synopsis":          in.Synopsis,
+			"style":             in.Style,
+			"target_duration":   in.TargetDuration,
+			"voice":             in.Voice,
+			"speed":             in.Speed,
+			"aspect_ratio":      in.AspectRatio,
+			"source_video_path": in.SourceVideoPath,
+			"source_video_url":  in.SourceVideoURL,
+			"generated_prompt":  videoPrompt,
 		},
 		OutputData: models.JSONMap{
 			"segments": segmentsWithAudio,

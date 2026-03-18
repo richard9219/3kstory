@@ -44,6 +44,8 @@ type VideoGenerationRequest struct {
 	Duration          int    // seconds (1-60)
 	AspectRatio       string // "16:9" or "9:16"
 	Mode              string
+	SourceVideoPath   string
+	SourceVideoURL    string
 	NarrationSegments []LocalNarrationSegment
 }
 
@@ -52,6 +54,7 @@ type LocalNarrationSegment struct {
 	NarrationText     string `json:"narration_text"`
 	EstimatedDuration int    `json:"estimated_duration"`
 	AudioURL          string `json:"audio_url,omitempty"`
+	AudioPath         string `json:"audio_path,omitempty"`
 }
 
 // VideoGenerationResult represents the result of video generation
@@ -87,12 +90,14 @@ func (s *VideoService) generateWithLocalService(ctx context.Context, req *VideoG
 
 	endpoint := s.cfg.AI.VideoServiceURL
 	requestBody := map[string]interface{}{
-		"prompt":       req.Prompt,
-		"image_url":    req.ImageURL,
-		"duration":     req.Duration,
-		"aspect_ratio": req.AspectRatio,
-		"scene_id":     req.SceneID,
-		"project_id":   req.ProjectID,
+		"prompt":            req.Prompt,
+		"image_url":         req.ImageURL,
+		"duration":          req.Duration,
+		"aspect_ratio":      req.AspectRatio,
+		"scene_id":          req.SceneID,
+		"project_id":        req.ProjectID,
+		"source_video_path": req.SourceVideoPath,
+		"source_video_url":  req.SourceVideoURL,
 	}
 	if strings.TrimSpace(req.Mode) != "" {
 		requestBody["mode"] = req.Mode

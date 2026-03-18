@@ -57,6 +57,7 @@ cd "$(dirname "$0")/backend"
 # 避免 docker-compose 对未设置变量发出 WARN（本地 E2E 默认值即可）
 export JWT_SECRET="${JWT_SECRET:-dev-local-jwt-secret}"
 export QWEN_API_KEY="${QWEN_API_KEY-}"
+export TTS_OUTPUT_DIR="${TTS_OUTPUT_DIR:-.local/tts}"
 
 # 启动数据库和 Redis
 echo -e "${YELLOW}启动 PostgreSQL 和 Redis...${NC}"

@@ -21,14 +21,16 @@ func NewNarrationHandler(projectService *services.ProjectService, narrationServi
 }
 
 type GenerateNarrationRequest struct {
-	MovieTitle     string  `json:"movie_title" binding:"required"`
-	Synopsis       string  `json:"synopsis"`
-	Style          string  `json:"style"`
-	TargetDuration int     `json:"target_duration" binding:"min=10,max=600"`
-	Voice          string  `json:"voice"`
-	Speed          float64 `json:"speed" binding:"min=0.5,max=2"`
-	Provider       string  `json:"provider" binding:"omitempty,oneof=runway pika local"`
-	AspectRatio    string  `json:"aspect_ratio" binding:"omitempty,oneof=16:9 9:16"`
+	MovieTitle      string  `json:"movie_title" binding:"required"`
+	Synopsis        string  `json:"synopsis"`
+	Style           string  `json:"style"`
+	TargetDuration  int     `json:"target_duration" binding:"min=10,max=600"`
+	Voice           string  `json:"voice"`
+	Speed           float64 `json:"speed" binding:"min=0.5,max=2"`
+	Provider        string  `json:"provider" binding:"omitempty,oneof=runway pika local"`
+	AspectRatio     string  `json:"aspect_ratio" binding:"omitempty,oneof=16:9 9:16"`
+	SourceVideoPath string  `json:"source_video_path"`
+	SourceVideoURL  string  `json:"source_video_url"`
 }
 
 // GenerateNarrationVideo 生成电影/电视剧解说视频
@@ -80,16 +82,18 @@ func (h *NarrationHandler) GenerateNarrationVideo(c *gin.Context) {
 	}
 
 	task, err := h.narrationService.GenerateNarrationVideo(c.Request.Context(), services.GenerateNarrationInput{
-		ProjectID:      projectID,
-		UserID:         userID.(uint),
-		MovieTitle:     req.MovieTitle,
-		Synopsis:       req.Synopsis,
-		Style:          req.Style,
-		TargetDuration: req.TargetDuration,
-		Voice:          req.Voice,
-		Speed:          req.Speed,
-		Provider:       services.VideoProvider(req.Provider),
-		AspectRatio:    req.AspectRatio,
+		ProjectID:       projectID,
+		UserID:          userID.(uint),
+		MovieTitle:      req.MovieTitle,
+		Synopsis:        req.Synopsis,
+		Style:           req.Style,
+		TargetDuration:  req.TargetDuration,
+		Voice:           req.Voice,
+		Speed:           req.Speed,
+		Provider:        services.VideoProvider(req.Provider),
+		AspectRatio:     req.AspectRatio,
+		SourceVideoPath: req.SourceVideoPath,
+		SourceVideoURL:  req.SourceVideoURL,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "narration video generation failed", "details": err.Error()})

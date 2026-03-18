@@ -41,6 +41,9 @@ export default function DashboardPage() {
     synopsis: '',
     style: '深度分析',
     targetDuration: 90,
+    voice: 'female_cn',
+    sourceVideoPath: '',
+    sourceVideoUrl: '',
     provider: 'local' as 'runway' | 'pika' | 'local',
     aspectRatio: '16:9' as '16:9' | '9:16',
   });
@@ -92,8 +95,11 @@ export default function DashboardPage() {
         synopsis: form.synopsis.trim(),
         style: form.style,
         target_duration: form.targetDuration,
+        voice: form.voice,
         provider: form.provider,
         aspect_ratio: form.aspectRatio,
+        source_video_path: form.sourceVideoPath.trim(),
+        source_video_url: form.sourceVideoUrl.trim(),
       });
       const status = resp.data?.status || 'processing';
       const videoId = resp.data?.video_id || '';
@@ -196,6 +202,32 @@ export default function DashboardPage() {
                     />
                   </label>
 
+                  <label className="text-sm text-gray-300 md:col-span-2">
+                    本地素材视频路径（可选）
+                    <input
+                      value={form.sourceVideoPath}
+                      onChange={(e) => setForm((prev) => ({ ...prev, sourceVideoPath: e.target.value }))}
+                      className="mt-1 w-full rounded-lg bg-black/30 border border-white/15 text-white px-3 py-2"
+                      placeholder="/Users/you/Videos/movie.mp4"
+                    />
+                    <span className="mt-1 block text-xs text-gray-500">
+                      适合本地 Mac 调试。当前版本要求填写后端所在机器可直接访问的绝对路径。
+                    </span>
+                  </label>
+
+                  <label className="text-sm text-gray-300 md:col-span-2">
+                    在线素材视频直链（可选）
+                    <input
+                      value={form.sourceVideoUrl}
+                      onChange={(e) => setForm((prev) => ({ ...prev, sourceVideoUrl: e.target.value }))}
+                      className="mt-1 w-full rounded-lg bg-black/30 border border-white/15 text-white px-3 py-2"
+                      placeholder="https://example.com/movie-clip.mp4"
+                    />
+                    <span className="mt-1 block text-xs text-gray-500">
+                      目前支持可被 ffmpeg 直接访问的媒体 URL，不支持把 YouTube 或社交平台页面链接直接当作素材。
+                    </span>
+                  </label>
+
                   <label className="text-sm text-gray-300">
                     风格
                     <select
@@ -219,6 +251,19 @@ export default function DashboardPage() {
                       onChange={(e) => setForm((prev) => ({ ...prev, targetDuration: Number(e.target.value) || 90 }))}
                       className="mt-1 w-full rounded-lg bg-black/30 border border-white/15 text-white px-3 py-2"
                     />
+                  </label>
+
+                  <label className="text-sm text-gray-300">
+                    旁白声音
+                    <select
+                      value={form.voice}
+                      onChange={(e) => setForm((prev) => ({ ...prev, voice: e.target.value }))}
+                      className="mt-1 w-full rounded-lg bg-black/30 border border-white/15 text-white px-3 py-2"
+                    >
+                      <option value="female_cn">女声（Ting-Ting）</option>
+                      <option value="male_cn">男声（Sin-ji）</option>
+                      <option value="Mei-Jia">女声（Mei-Jia）</option>
+                    </select>
                   </label>
 
                   <label className="text-sm text-gray-300">
