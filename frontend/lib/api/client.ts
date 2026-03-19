@@ -100,6 +100,7 @@ export const videoAPI = {
     aspect_ratio?: '16:9' | '9:16';
     source_video_path?: string;
     source_video_url?: string;
+    creative_brief?: string;
   }) =>
     apiClient.post(`/projects/${projectId}/generate-narration`, data),
     

@@ -2,24 +2,31 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/richard9219/3kstory/internal/config"
 	"github.com/richard9219/3kstory/internal/models"
 	"gorm.io/gorm"
 )
 
 type NarrationService struct {
 	db           *gorm.DB
+	cfg          *config.Config
 	aiService    *AIService
 	videoService *VideoService
 	ttsService   *TTSService
 }
 
-func NewNarrationService(db *gorm.DB, aiService *AIService, videoService *VideoService, ttsService *TTSService) *NarrationService {
+func NewNarrationService(db *gorm.DB, cfg *config.Config, aiService *AIService, videoService *VideoService, ttsService *TTSService) *NarrationService {
 	return &NarrationService{
 		db:           db,
+		cfg:          cfg,
 		aiService:    aiService,
 		videoService: videoService,
 		ttsService:   ttsService,
@@ -39,6 +46,7 @@ type GenerateNarrationInput struct {
 	Provider        VideoProvider
 	SourceVideoPath string
 	SourceVideoURL  string
+	CreativeBrief   string
 }
 
 func (s *NarrationService) GenerateNarrationVideo(ctx context.Context, in GenerateNarrationInput) (*models.VideoTask, error) {
@@ -47,6 +55,7 @@ func (s *NarrationService) GenerateNarrationVideo(ctx context.Context, in Genera
 		Synopsis:       in.Synopsis,
 		Style:          in.Style,
 		TargetDuration: in.TargetDuration,
+		CreativeBrief:  in.CreativeBrief,
 	})
 	if err != nil {
 		return nil, err
@@ -91,6 +100,11 @@ func (s *NarrationService) GenerateNarrationVideo(ctx context.Context, in Genera
 		return nil, err
 	}
 
+	assetBundle, err := s.writeNarrationAssets(videoResult.VideoID, narration, in, videoPrompt)
+	if err != nil {
+		return nil, err
+	}
+
 	var completedAt *time.Time
 	if videoResult.Status == "completed" {
 		now := time.Now()
@@ -116,10 +130,17 @@ func (s *NarrationService) GenerateNarrationVideo(ctx context.Context, in Genera
 			"aspect_ratio":      in.AspectRatio,
 			"source_video_path": in.SourceVideoPath,
 			"source_video_url":  in.SourceVideoURL,
+			"creative_brief":    in.CreativeBrief,
 			"generated_prompt":  videoPrompt,
 		},
 		OutputData: models.JSONMap{
-			"segments": segmentsWithAudio,
+			"segments":             segmentsWithAudio,
+			"script_text_path":     assetBundle.TextPath,
+			"script_markdown_path": assetBundle.MarkdownPath,
+			"script_json_path":     assetBundle.JSONPath,
+			"script_text_url":      assetBundle.TextURL,
+			"script_markdown_url":  assetBundle.MarkdownURL,
+			"script_json_url":      assetBundle.JSONURL,
 		},
 		CompletedAt: completedAt,
 	}
@@ -129,4 +150,142 @@ func (s *NarrationService) GenerateNarrationVideo(ctx context.Context, in Genera
 	}
 
 	return task, nil
+}
+
+type narrationAssetBundle struct {
+	TextPath     string
+	MarkdownPath string
+	JSONPath     string
+	TextURL      string
+	MarkdownURL  string
+	JSONURL      string
+}
+
+func (s *NarrationService) writeNarrationAssets(videoID string, narration *NarrationScriptResult, in GenerateNarrationInput, generatedPrompt string) (*narrationAssetBundle, error) {
+	outputDir := s.cfg.AI.NarrationOutputDir
+	if strings.TrimSpace(outputDir) == "" {
+		outputDir = filepath.Join(".local", "videos", "narration")
+	}
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return nil, fmt.Errorf("create narration output dir failed: %w", err)
+	}
+
+	baseName := sanitizeFileComponent(in.MovieTitle)
+	if baseName == "" {
+		baseName = "narration"
+	}
+	if strings.TrimSpace(videoID) != "" {
+		baseName += "-" + videoID
+	} else {
+		baseName += "-" + strconv.FormatInt(time.Now().Unix(), 10)
+	}
+
+	textPath := filepath.Join(outputDir, baseName+".txt")
+	mdPath := filepath.Join(outputDir, baseName+".md")
+	jsonPath := filepath.Join(outputDir, baseName+".json")
+
+	textBody := s.buildNarrationText(narration, in)
+	mdBody := s.buildNarrationMarkdown(narration, in, generatedPrompt)
+	jsonBody := s.buildNarrationJSON(narration, in, generatedPrompt)
+
+	if err := os.WriteFile(textPath, []byte(textBody), 0o644); err != nil {
+		return nil, fmt.Errorf("write narration text failed: %w", err)
+	}
+	if err := os.WriteFile(mdPath, []byte(mdBody), 0o644); err != nil {
+		return nil, fmt.Errorf("write narration markdown failed: %w", err)
+	}
+	if err := os.WriteFile(jsonPath, []byte(jsonBody), 0o644); err != nil {
+		return nil, fmt.Errorf("write narration json failed: %w", err)
+	}
+
+	publicBase := strings.TrimRight(s.cfg.AI.NarrationPublicBase, "/")
+	return &narrationAssetBundle{
+		TextPath:     textPath,
+		MarkdownPath: mdPath,
+		JSONPath:     jsonPath,
+		TextURL:      publicBase + "/" + filepath.Base(textPath),
+		MarkdownURL:  publicBase + "/" + filepath.Base(mdPath),
+		JSONURL:      publicBase + "/" + filepath.Base(jsonPath),
+	}, nil
+}
+
+func (s *NarrationService) buildNarrationText(narration *NarrationScriptResult, in GenerateNarrationInput) string {
+	lines := make([]string, 0, len(narration.Segments)+4)
+	lines = append(lines, narration.Title)
+	lines = append(lines, "")
+	for idx, seg := range narration.Segments {
+		lines = append(lines, fmt.Sprintf("%d. %s", idx+1, strings.TrimSpace(seg.Title)))
+		lines = append(lines, strings.TrimSpace(seg.NarrationText))
+		lines = append(lines, "")
+	}
+	if brief := strings.TrimSpace(in.CreativeBrief); brief != "" {
+		lines = append(lines, "创作要求：")
+		lines = append(lines, brief)
+		lines = append(lines, "")
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (s *NarrationService) buildNarrationMarkdown(narration *NarrationScriptResult, in GenerateNarrationInput, generatedPrompt string) string {
+	lines := []string{
+		"# " + narration.Title,
+		"",
+		"## 元信息",
+		"",
+		"- 影片/主题：" + in.MovieTitle,
+		"- 风格：" + in.Style,
+		"- 目标时长：" + strconv.Itoa(in.TargetDuration) + " 秒",
+		"- 画幅：" + in.AspectRatio,
+	}
+	if strings.TrimSpace(in.CreativeBrief) != "" {
+		lines = append(lines, "- 创作要求："+strings.TrimSpace(in.CreativeBrief))
+	}
+	lines = append(lines, "", "## 解说稿", "")
+	for idx, seg := range narration.Segments {
+		lines = append(lines, fmt.Sprintf("### %d. %s", idx+1, strings.TrimSpace(seg.Title)))
+		lines = append(lines, "")
+		lines = append(lines, strings.TrimSpace(seg.NarrationText))
+		lines = append(lines, "")
+	}
+	lines = append(lines, "## 生成提示词", "", generatedPrompt, "")
+	return strings.Join(lines, "\n")
+}
+
+func (s *NarrationService) buildNarrationJSON(narration *NarrationScriptResult, in GenerateNarrationInput, generatedPrompt string) string {
+	payload := map[string]interface{}{
+		"title":            narration.Title,
+		"movie_title":      in.MovieTitle,
+		"style":            in.Style,
+		"target_duration":  in.TargetDuration,
+		"aspect_ratio":     in.AspectRatio,
+		"creative_brief":   in.CreativeBrief,
+		"generated_prompt": generatedPrompt,
+		"segments":         narration.Segments,
+	}
+	b, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
+}
+
+func sanitizeFileComponent(in string) string {
+	value := strings.ToLower(strings.TrimSpace(in))
+	if value == "" {
+		return ""
+	}
+	replacer := strings.NewReplacer(
+		" ", "-",
+		"/", "-",
+		"\\", "-",
+		":", "-",
+		"*", "-",
+		"?", "-",
+		"\"", "-",
+		"<", "-",
+		">", "-",
+		"|", "-",
+	)
+	value = replacer.Replace(value)
+	return strings.Trim(value, "-")
 }

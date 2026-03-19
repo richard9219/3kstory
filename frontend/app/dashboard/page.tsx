@@ -44,6 +44,7 @@ export default function DashboardPage() {
     voice: 'female_cn',
     sourceVideoPath: '',
     sourceVideoUrl: '',
+    creativeBrief: '',
     provider: 'local' as 'runway' | 'pika' | 'local',
     aspectRatio: '16:9' as '16:9' | '9:16',
   });
@@ -100,6 +101,7 @@ export default function DashboardPage() {
         aspect_ratio: form.aspectRatio,
         source_video_path: form.sourceVideoPath.trim(),
         source_video_url: form.sourceVideoUrl.trim(),
+        creative_brief: form.creativeBrief.trim(),
       });
       const status = resp.data?.status || 'processing';
       const videoId = resp.data?.video_id || '';
@@ -225,6 +227,19 @@ export default function DashboardPage() {
                     />
                     <span className="mt-1 block text-xs text-gray-500">
                       目前支持可被 ffmpeg 直接访问的媒体 URL，不支持把 YouTube 或社交平台页面链接直接当作素材。
+                    </span>
+                  </label>
+
+                  <label className="text-sm text-gray-300 md:col-span-2">
+                    创作要求（可选）
+                    <textarea
+                      value={form.creativeBrief}
+                      onChange={(e) => setForm((prev) => ({ ...prev, creativeBrief: e.target.value }))}
+                      className="mt-1 w-full rounded-lg bg-black/30 border border-white/15 text-white px-3 py-2 min-h-28"
+                      placeholder="例如：请用第一人称自述，迁移到中国历史背景，主角参考传奇权臣/奇才人物，结尾致敬原片《药命效应》。"
+                    />
+                    <span className="mt-1 block text-xs text-gray-500">
+                      这段要求会直接参与解说稿生成，也会同步写入导出的解说稿文件。
                     </span>
                   </label>
 

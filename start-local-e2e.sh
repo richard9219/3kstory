@@ -58,6 +58,8 @@ cd "$(dirname "$0")/backend"
 export JWT_SECRET="${JWT_SECRET:-dev-local-jwt-secret}"
 export QWEN_API_KEY="${QWEN_API_KEY-}"
 export TTS_OUTPUT_DIR="${TTS_OUTPUT_DIR:-.local/tts}"
+export NARRATION_OUTPUT_DIR="${NARRATION_OUTPUT_DIR:-.local/videos/narration}"
+export NARRATION_PUBLIC_BASE="${NARRATION_PUBLIC_BASE:-http://localhost:8003/files/narration}"
 
 # 启动数据库和 Redis
 echo -e "${YELLOW}启动 PostgreSQL 和 Redis...${NC}"

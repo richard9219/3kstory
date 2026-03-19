@@ -15,7 +15,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, rdb *redis.Client, cfg *config.Conf
 	projectService := services.NewProjectService(db, aiService)
 	videoService := services.NewVideoService(cfg, db)
 	ttsService := services.NewTTSService()
-	narrationService := services.NewNarrationService(db, aiService, videoService, ttsService)
+	narrationService := services.NewNarrationService(db, cfg, aiService, videoService, ttsService)
 	platformService := services.NewPlatformService(db, cfg, &services.RedisAdapter{Client: rdb})
 	analyticsService := services.NewAnalyticsService(db)
 

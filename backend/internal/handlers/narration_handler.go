@@ -31,6 +31,7 @@ type GenerateNarrationRequest struct {
 	AspectRatio     string  `json:"aspect_ratio" binding:"omitempty,oneof=16:9 9:16"`
 	SourceVideoPath string  `json:"source_video_path"`
 	SourceVideoURL  string  `json:"source_video_url"`
+	CreativeBrief   string  `json:"creative_brief"`
 }
 
 // GenerateNarrationVideo 生成电影/电视剧解说视频
@@ -94,6 +95,7 @@ func (h *NarrationHandler) GenerateNarrationVideo(c *gin.Context) {
 		AspectRatio:     req.AspectRatio,
 		SourceVideoPath: req.SourceVideoPath,
 		SourceVideoURL:  req.SourceVideoURL,
+		CreativeBrief:   req.CreativeBrief,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "narration video generation failed", "details": err.Error()})

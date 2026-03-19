@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -10,20 +11,20 @@ type Config struct {
 	Port        string
 	BaseURL     string // 后端对外 BaseURL，用于 OAuth redirect_uri
 	FrontendURL string // 前端地址，OAuth 成功后跳转
-	Database DatabaseConfig
-	Redis    RedisConfig
-	JWT      JWTConfig
-	OSS      OSSConfig
-	AI       AIConfig
-	Platform PlatformConfig
+	Database    DatabaseConfig
+	Redis       RedisConfig
+	JWT         JWTConfig
+	OSS         OSSConfig
+	AI          AIConfig
+	Platform    PlatformConfig
 }
 
 // PlatformConfig 各视频平台 OAuth 配置
 type PlatformConfig struct {
-	Douyin       PlatformOAuthItem
-	Xiaohongshu  PlatformOAuthItem
-	Bilibili     PlatformOAuthItem
-	Weibo        PlatformOAuthItem
+	Douyin      PlatformOAuthItem
+	Xiaohongshu PlatformOAuthItem
+	Bilibili    PlatformOAuthItem
+	Weibo       PlatformOAuthItem
 }
 
 type PlatformOAuthItem struct {
@@ -62,23 +63,25 @@ type OSSConfig struct {
 }
 
 type AIConfig struct {
-	AIProvider       string
-	QwenAPIKey       string
-	QwenAPIBase      string
-	VLLMBaseURL      string
-	VLLMModelName    string
-	VLLMMaxTokens    int
-	VLLMTimeout      int
-	OLLAMABaseURL    string
-	OLLAMAModelName  string
-	OLLAMAMaxTokens  int
-	OLLAMATimeout    int
-	TextServiceURL   string
-	ImageServiceURL  string
-	VideoServiceURL  string
-	ReviewServiceURL string
-	RunwayAPIKey     string
-	PikaAPIKey       string
+	AIProvider          string
+	QwenAPIKey          string
+	QwenAPIBase         string
+	VLLMBaseURL         string
+	VLLMModelName       string
+	VLLMMaxTokens       int
+	VLLMTimeout         int
+	OLLAMABaseURL       string
+	OLLAMAModelName     string
+	OLLAMAMaxTokens     int
+	OLLAMATimeout       int
+	TextServiceURL      string
+	ImageServiceURL     string
+	VideoServiceURL     string
+	ReviewServiceURL    string
+	RunwayAPIKey        string
+	PikaAPIKey          string
+	NarrationOutputDir  string
+	NarrationPublicBase string
 }
 
 func Load() *Config {
@@ -118,23 +121,25 @@ func Load() *Config {
 			BaseURL:         getEnv("OSS_BASE_URL", ""),
 		},
 		AI: AIConfig{
-			AIProvider:       getEnv("AI_PROVIDER", "cloud_qwen"),
-			QwenAPIKey:       getEnv("QWEN_API_KEY", ""),
-			QwenAPIBase:      getEnv("QWEN_API_BASE", ""),
-			VLLMBaseURL:      getEnv("VLLM_BASE_URL", "http://localhost:8000"),
-			VLLMModelName:    getEnv("VLLM_MODEL_NAME", "qwen2.5-7b"),
-			VLLMMaxTokens:    vllmMaxTokens,
-			VLLMTimeout:      vllmTimeout,
-			OLLAMABaseURL:    getEnv("OLLAMA_BASE_URL", "http://localhost:11434"),
-			OLLAMAModelName:  getEnv("OLLAMA_MODEL_NAME", "qwen2.5:7b"),
-			OLLAMAMaxTokens:  ollamaMaxTokens,
-			OLLAMATimeout:    ollamaTimeout,
-			TextServiceURL:   getEnv("AI_TEXT_SERVICE_URL", ""),
-			ImageServiceURL:  getEnv("AI_IMAGE_SERVICE_URL", ""),
-			VideoServiceURL:  getEnv("AI_VIDEO_SERVICE_URL", ""),
-			ReviewServiceURL: getEnv("AI_REVIEW_SERVICE_URL", ""),
-			RunwayAPIKey:     getEnv("RUNWAY_API_KEY", ""),
-			PikaAPIKey:       getEnv("PIKA_API_KEY", ""),
+			AIProvider:          getEnv("AI_PROVIDER", "cloud_qwen"),
+			QwenAPIKey:          getEnv("QWEN_API_KEY", ""),
+			QwenAPIBase:         getEnv("QWEN_API_BASE", ""),
+			VLLMBaseURL:         getEnv("VLLM_BASE_URL", "http://localhost:8000"),
+			VLLMModelName:       getEnv("VLLM_MODEL_NAME", "qwen2.5-7b"),
+			VLLMMaxTokens:       vllmMaxTokens,
+			VLLMTimeout:         vllmTimeout,
+			OLLAMABaseURL:       getEnv("OLLAMA_BASE_URL", "http://localhost:11434"),
+			OLLAMAModelName:     getEnv("OLLAMA_MODEL_NAME", "qwen2.5:7b"),
+			OLLAMAMaxTokens:     ollamaMaxTokens,
+			OLLAMATimeout:       ollamaTimeout,
+			TextServiceURL:      getEnv("AI_TEXT_SERVICE_URL", ""),
+			ImageServiceURL:     getEnv("AI_IMAGE_SERVICE_URL", ""),
+			VideoServiceURL:     getEnv("AI_VIDEO_SERVICE_URL", ""),
+			ReviewServiceURL:    getEnv("AI_REVIEW_SERVICE_URL", ""),
+			RunwayAPIKey:        getEnv("RUNWAY_API_KEY", ""),
+			PikaAPIKey:          getEnv("PIKA_API_KEY", ""),
+			NarrationOutputDir:  getEnv("NARRATION_OUTPUT_DIR", ".local/videos/narration"),
+			NarrationPublicBase: strings.TrimRight(getEnv("NARRATION_PUBLIC_BASE", "http://localhost:8003/files/narration"), "/"),
 		},
 		Platform: PlatformConfig{
 			Douyin: PlatformOAuthItem{

@@ -251,6 +251,7 @@ type NarrationScriptRequest struct {
 	Synopsis       string
 	Style          string
 	TargetDuration int
+	CreativeBrief  string
 }
 
 type NarrationSegment struct {
@@ -275,6 +276,9 @@ func (s *AIService) GenerateNarrationScript(ctx context.Context, req NarrationSc
 	}
 
 	prompt := fmt.Sprintf("请为《%s》生成%s风格的电影/电视剧解说稿，目标时长约%d秒。剧情简介：%s", req.MovieTitle, req.Style, req.TargetDuration, req.Synopsis)
+	if extra := strings.TrimSpace(req.CreativeBrief); extra != "" {
+		prompt += "。额外创作要求：" + extra
+	}
 	script, err := s.GenerateScript(ctx, prompt)
 	if err != nil {
 		segments := []NarrationSegment{{
