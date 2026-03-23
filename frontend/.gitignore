@@ -26,3 +26,7 @@ yarn-error.log*
 .env
 .env.local
 .env.*.local
+
+# local python env for logo tooling
+.venv/
+.venv*/
