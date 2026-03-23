@@ -37,6 +37,8 @@ export interface Scene {
   created_at: string;
 }
 
+export type VideoProviderKind = 'runway' | 'pika' | 'local' | 'minimax' | 'seedance' | 'comfy';
+
 // Video generation types
 export interface VideoTask {
   id: number;
@@ -46,7 +48,7 @@ export interface VideoTask {
   task_type?: 'generate_video' | 'narration_video';
   title?: string;
   video_id: string;
-  provider: 'runway' | 'pika' | 'local';
+  provider: VideoProviderKind;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   video_url?: string;
   error_msg?: string;
@@ -101,4 +103,118 @@ export interface AnalyticsSummary {
   total_interactions: number;
   bound_platforms: PlatformAccount[];
   configured_platforms: PlatformKind[];
+}
+
+export interface ProviderHealth {
+  provider: VideoProviderKind;
+  configured: boolean;
+  healthy: boolean;
+  message: string;
+  error_kind?: string;
+  checked_at: string;
+}
+
+export interface ModelProviderStatus {
+  name: string;
+  category: 'text' | 'image' | 'tts' | 'video';
+  configured: boolean;
+  healthy: boolean;
+  message: string;
+  checked_at: string;
+}
+
+export interface ModelCenterOverview {
+  preferred_video_provider: VideoProviderKind;
+  video_providers: ProviderHealth[];
+  text_providers: ModelProviderStatus[];
+  image_providers: ModelProviderStatus[];
+  tts_providers: ModelProviderStatus[];
+  task_routes: {
+    task: string;
+    category: 'text' | 'video';
+    providers: string[];
+  }[];
+  alerts: ModelProviderAlert[];
+  probe_task: ModelProbeTaskStatus;
+}
+
+export interface ModelProviderAlert {
+  name: string;
+  category: 'text' | 'image' | 'tts' | 'video';
+  failure_streak: number;
+  failure_threshold: number;
+  alerting: boolean;
+  last_failure_at?: string;
+  last_success_at?: string;
+  last_message?: string;
+  updated_at: string;
+}
+
+export interface ModelProbeTaskStatus {
+  enabled: boolean;
+  interval_seconds: number;
+  failure_threshold: number;
+  last_probe_at?: string;
+  next_probe_at?: string;
+  running: boolean;
+}
+
+export interface RoleAsset {
+  id: number;
+  user_id: number;
+  project_id?: number;
+  name: string;
+  role_type?: string;
+  description?: string;
+  avatar_url?: string;
+  voice_preset?: string;
+  style_prompt?: string;
+  negative_hint?: string;
+  tags?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PromptTemplate {
+  id: number;
+  user_id: number;
+  project_id?: number;
+  name: string;
+  template_type: string;
+  provider_type?: string;
+  content: string;
+  variables?: string;
+  tags?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StoryboardShot {
+  id: number;
+  user_id: number;
+  project_id: number;
+  scene_id?: number;
+  chapter?: string;
+  shot_number: number;
+  sort_order: number;
+  title: string;
+  description?: string;
+  camera_language?: string;
+  duration: number;
+  aspect_ratio: '16:9' | '9:16';
+  prompt?: string;
+  negative_prompt?: string;
+  reference_image_url?: string;
+  status: 'draft' | 'pending' | 'processing' | 'completed' | 'failed';
+  version: number;
+  parent_shot_id?: number;
+  root_shot_id?: number;
+  version_note?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StoryboardVersionNode {
+  root: StoryboardShot;
+  versions: StoryboardShot[];
 }

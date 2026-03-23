@@ -1,0 +1,7 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="3K Story Mark">
+  <rect x="12" y="12" width="232" height="232" rx="46" fill="#ffffff" stroke="#111111" stroke-width="8"/>
+  <path d="M68 82H168" stroke="#111111" stroke-width="14" stroke-linecap="round"/>
+  <path d="M68 128H150" stroke="#111111" stroke-width="14" stroke-linecap="round"/>
+  <path d="M68 174H168" stroke="#111111" stroke-width="14" stroke-linecap="round"/>
+  <path d="M172 84L198 128L172 172" fill="none" stroke="#111111" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

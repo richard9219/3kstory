@@ -16,6 +16,7 @@ const PLATFORMS: { id: PlatformKind; name: string; desc: string }[] = [
 
 export default function PlatformsPage() {
   const { isAuthenticated } = useAuthStore();
+  const [offlineMode, setOfflineMode] = useState(false);
   const [list, setList] = useState<PlatformAccount[]>([]);
   const [configured, setConfigured] = useState<PlatformKind[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +26,11 @@ export default function PlatformsPage() {
 
   useEffect(() => {
     platformAPI.configured().then((res) => setConfigured(res.data.data || [])).catch(() => setConfigured([]));
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setOfflineMode(sessionStorage.getItem('frontend-offline-fallback') === '1');
   }, []);
 
   useEffect(() => {
@@ -68,14 +74,14 @@ export default function PlatformsPage() {
 
   if (!isAuthenticated) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900/20 via-blue-900/20 to-black">
+      <main className="min-h-screen bg-[#f7f7f7] flex items-center justify-center">
         <div className="text-center max-w-md mx-auto px-4">
-          <Video className="w-16 h-16 text-purple-400 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-white mb-2">平台账号</h1>
-          <p className="text-gray-400 mb-6">请先登录后再绑定抖音、小红书、B站、微博等平台账号。</p>
+          <Video className="w-16 h-16 text-black/70 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-black mb-2">平台账号</h1>
+          <p className="text-black/55 mb-6">请先登录后再绑定抖音、小红书、B站、微博等平台账号。</p>
           <Link
             href="/"
-            className="inline-block px-6 py-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium transition"
+            className="btn-base btn-dark btn-m"
           >
             返回首页
           </Link>
@@ -85,22 +91,31 @@ export default function PlatformsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-purple-900/20 via-blue-900/20 to-black py-12 px-4">
+    <main className="min-h-screen bg-[#f7f7f7] px-4 pb-12">
       <div className="max-w-2xl mx-auto">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          返回首页
-        </Link>
-        <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-2">
-          <Link2 className="w-8 h-8" />
-          平台账号
-        </h1>
-        <p className="text-gray-400 mb-4">
-          绑定后可在发布作品时选择对应平台一键发布。授权信息仅用于发布，我们不会用于其他用途。
-        </p>
+        <section className="min-h-[calc(100vh-96px)] flex items-center justify-center py-10">
+          <div className="w-full max-w-2xl text-center">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 text-black/55 hover:text-black transition"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              返回首页
+            </Link>
+            <div className="ui-mt-16 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-black/10 bg-white text-black/75">
+              <Link2 className="w-6 h-6" />
+            </div>
+            <h1 className="site-h1 ui-mt-12">平台账号</h1>
+            <p className="site-lead ui-mt-12 mx-auto max-w-xl text-black/58">
+              绑定后可在发布作品时选择对应平台一键发布。授权信息仅用于发布，我们不会用于其他用途。
+            </p>
+          </div>
+        </section>
+        {offlineMode ? (
+          <div className="mb-4 rounded-xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-sm text-amber-800">
+            当前处于演示模式：平台绑定数据可能来自本地兜底数据。
+          </div>
+        ) : null}
         {bindError && (
           <div className="mb-6 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
             {bindError}
@@ -109,7 +124,7 @@ export default function PlatformsPage() {
 
         {loading ? (
           <div className="flex justify-center py-12">
-            <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+            <Loader2 className="w-8 h-8 text-black/70 animate-spin" />
           </div>
         ) : (
           <ul className="space-y-4">
@@ -121,22 +136,22 @@ export default function PlatformsPage() {
                 <li
                   key={p.id}
                   className={`flex items-center justify-between p-4 rounded-xl border transition ${
-                    isConfigured ? 'bg-white/5 border-white/10' : 'bg-white/5 border-white/5 opacity-75'
+                    isConfigured ? 'site-card border-black/10' : 'site-card border-black/5 opacity-75'
                   }`}
                 >
                   <div className="flex items-center gap-4">
                     {acc?.avatar_url ? (
-                      <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-white/10 flex-shrink-0">
+                      <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-black/[0.04] flex-shrink-0">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={acc.avatar_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       </div>
                     ) : (
-                      <div className="w-12 h-12 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
-                        <Video className="w-6 h-6 text-purple-400" />
+                      <div className="w-12 h-12 rounded-lg bg-black/[0.04] flex items-center justify-center flex-shrink-0">
+                        <Video className="w-6 h-6 text-black/70" />
                       </div>
                     )}
                     <div>
-                      <div className="font-medium text-white flex items-center gap-2">
+                      <div className="font-medium text-black flex items-center gap-2">
                         {p.name}
                         {!isConfigured && (
                           <span className="text-xs text-gray-500 font-normal flex items-center gap-1">
@@ -144,9 +159,9 @@ export default function PlatformsPage() {
                           </span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-500">{p.desc}</div>
+                      <div className="text-sm text-black/55">{p.desc}</div>
                       {acc?.nickname && (
-                        <div className="text-sm text-gray-400 mt-1">已绑定：{acc.nickname}</div>
+                        <div className="text-sm text-black/60 mt-1">已绑定：{acc.nickname}</div>
                       )}
                     </div>
                   </div>
@@ -155,7 +170,7 @@ export default function PlatformsPage() {
                       <button
                         onClick={() => handleDisconnect(p.id)}
                         disabled={!!unbinding}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg border border-red-500/50 text-red-400 hover:bg-red-500/10 disabled:opacity-50 transition"
+                        className="btn-base btn-m border border-red-500/50 text-red-500 hover:bg-red-500/10 disabled:opacity-50"
                       >
                         {unbinding === p.id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
@@ -168,7 +183,7 @@ export default function PlatformsPage() {
                       <button
                         onClick={() => handleBind(p.id)}
                         disabled={!!binding || !isConfigured}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 transition"
+                        className="btn-base btn-dark btn-m disabled:opacity-50"
                       >
                         {binding === p.id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />

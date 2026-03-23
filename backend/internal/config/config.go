@@ -63,25 +63,50 @@ type OSSConfig struct {
 }
 
 type AIConfig struct {
-	AIProvider          string
-	QwenAPIKey          string
-	QwenAPIBase         string
-	VLLMBaseURL         string
-	VLLMModelName       string
-	VLLMMaxTokens       int
-	VLLMTimeout         int
-	OLLAMABaseURL       string
-	OLLAMAModelName     string
-	OLLAMAMaxTokens     int
-	OLLAMATimeout       int
-	TextServiceURL      string
-	ImageServiceURL     string
-	VideoServiceURL     string
-	ReviewServiceURL    string
-	RunwayAPIKey        string
-	PikaAPIKey          string
-	NarrationOutputDir  string
-	NarrationPublicBase string
+	AIProvider              string
+	ScriptProviders         string
+	NarrationProviders      string
+	StoryboardProviders     string
+	ShotPromptProviders     string
+	ReviewProviders         string
+	SceneVideoProviders     string
+	NarrationVideoProviders string
+	PreviewVideoProviders   string
+	PremiumVideoProviders   string
+	MiniMaxAPIKey           string
+	MiniMaxAPIBase          string
+	MiniMaxVideoModel       string
+	MiniMaxVideoResolution  string
+	SeedanceAPIKey          string
+	SeedanceAPIBase         string
+	SeedanceCreatePath      string
+	SeedanceStatusPath      string
+	SeedanceVideoModel      string
+	SeedanceVideoResolution string
+	ComfyAPIKey             string
+	ComfyBaseURL            string
+	ComfyWorkflowDir        string
+	ComfyOutputNodeID       string
+	QwenAPIKey              string
+	QwenAPIBase             string
+	VLLMBaseURL             string
+	VLLMModelName           string
+	VLLMMaxTokens           int
+	VLLMTimeout             int
+	OLLAMABaseURL           string
+	OLLAMAModelName         string
+	OLLAMAMaxTokens         int
+	OLLAMATimeout           int
+	TextServiceURL          string
+	ImageServiceURL         string
+	VideoServiceURL         string
+	ReviewServiceURL        string
+	RunwayAPIKey            string
+	PikaAPIKey              string
+	ModelProbeInterval      int
+	ModelFailThreshold      int
+	NarrationOutputDir      string
+	NarrationPublicBase     string
 }
 
 func Load() *Config {
@@ -90,6 +115,8 @@ func Load() *Config {
 	vllmTimeout, _ := strconv.Atoi(getEnv("VLLM_TIMEOUT", "60"))
 	ollamaMaxTokens, _ := strconv.Atoi(getEnv("OLLAMA_MAX_TOKENS", "2048"))
 	ollamaTimeout, _ := strconv.Atoi(getEnv("OLLAMA_TIMEOUT", "60"))
+	modelProbeInterval, _ := strconv.Atoi(getEnv("MODEL_PROBE_INTERVAL", "60"))
+	modelFailThreshold, _ := strconv.Atoi(getEnv("MODEL_FAIL_THRESHOLD", "3"))
 
 	return &Config{
 		Env:         getEnv("ENV", "development"),
@@ -121,25 +148,50 @@ func Load() *Config {
 			BaseURL:         getEnv("OSS_BASE_URL", ""),
 		},
 		AI: AIConfig{
-			AIProvider:          getEnv("AI_PROVIDER", "cloud_qwen"),
-			QwenAPIKey:          getEnv("QWEN_API_KEY", ""),
-			QwenAPIBase:         getEnv("QWEN_API_BASE", ""),
-			VLLMBaseURL:         getEnv("VLLM_BASE_URL", "http://localhost:8000"),
-			VLLMModelName:       getEnv("VLLM_MODEL_NAME", "qwen2.5-7b"),
-			VLLMMaxTokens:       vllmMaxTokens,
-			VLLMTimeout:         vllmTimeout,
-			OLLAMABaseURL:       getEnv("OLLAMA_BASE_URL", "http://localhost:11434"),
-			OLLAMAModelName:     getEnv("OLLAMA_MODEL_NAME", "qwen2.5:7b"),
-			OLLAMAMaxTokens:     ollamaMaxTokens,
-			OLLAMATimeout:       ollamaTimeout,
-			TextServiceURL:      getEnv("AI_TEXT_SERVICE_URL", ""),
-			ImageServiceURL:     getEnv("AI_IMAGE_SERVICE_URL", ""),
-			VideoServiceURL:     getEnv("AI_VIDEO_SERVICE_URL", ""),
-			ReviewServiceURL:    getEnv("AI_REVIEW_SERVICE_URL", ""),
-			RunwayAPIKey:        getEnv("RUNWAY_API_KEY", ""),
-			PikaAPIKey:          getEnv("PIKA_API_KEY", ""),
-			NarrationOutputDir:  getEnv("NARRATION_OUTPUT_DIR", ".local/videos/narration"),
-			NarrationPublicBase: strings.TrimRight(getEnv("NARRATION_PUBLIC_BASE", "http://localhost:8003/files/narration"), "/"),
+			AIProvider:              getEnv("AI_PROVIDER", "cloud_qwen"),
+			ScriptProviders:         getEnv("AI_SCRIPT_PROVIDERS", ""),
+			NarrationProviders:      getEnv("AI_NARRATION_PROVIDERS", ""),
+			StoryboardProviders:     getEnv("AI_STORYBOARD_PROVIDERS", ""),
+			ShotPromptProviders:     getEnv("AI_SHOT_PROMPT_PROVIDERS", ""),
+			ReviewProviders:         getEnv("AI_REVIEW_PROVIDERS", ""),
+			SceneVideoProviders:     getEnv("AI_SCENE_VIDEO_PROVIDERS", ""),
+			NarrationVideoProviders: getEnv("AI_NARRATION_VIDEO_PROVIDERS", ""),
+			PreviewVideoProviders:   getEnv("AI_PREVIEW_VIDEO_PROVIDERS", ""),
+			PremiumVideoProviders:   getEnv("AI_PREMIUM_VIDEO_PROVIDERS", ""),
+			MiniMaxAPIKey:           getEnv("MINIMAX_API_KEY", ""),
+			MiniMaxAPIBase:          strings.TrimRight(getEnv("MINIMAX_API_BASE", "https://api.minimax.io"), "/"),
+			MiniMaxVideoModel:       getEnv("MINIMAX_VIDEO_MODEL", "MiniMax-Hailuo-2.3-Fast"),
+			MiniMaxVideoResolution:  getEnv("MINIMAX_VIDEO_RESOLUTION", "768P"),
+			SeedanceAPIKey:          getEnv("SEEDANCE_API_KEY", ""),
+			SeedanceAPIBase:         strings.TrimRight(getEnv("SEEDANCE_API_BASE", ""), "/"),
+			SeedanceCreatePath:      getEnv("SEEDANCE_CREATE_PATH", "/contents/generations/tasks"),
+			SeedanceStatusPath:      getEnv("SEEDANCE_STATUS_PATH", "/contents/generations/tasks/{task_id}"),
+			SeedanceVideoModel:      getEnv("SEEDANCE_VIDEO_MODEL", "seedance-1-0-pro-250528"),
+			SeedanceVideoResolution: getEnv("SEEDANCE_VIDEO_RESOLUTION", "720p"),
+			ComfyAPIKey:             getEnv("COMFY_API_KEY", ""),
+			ComfyBaseURL:            strings.TrimRight(getEnv("COMFY_BASE_URL", "http://localhost:8188"), "/"),
+			ComfyWorkflowDir:        getEnv("COMFY_WORKFLOW_DIR", "workflows/comfy"),
+			ComfyOutputNodeID:       getEnv("COMFY_OUTPUT_NODE_ID", ""),
+			QwenAPIKey:              getEnv("QWEN_API_KEY", ""),
+			QwenAPIBase:             getEnv("QWEN_API_BASE", ""),
+			VLLMBaseURL:             getEnv("VLLM_BASE_URL", "http://localhost:8000"),
+			VLLMModelName:           getEnv("VLLM_MODEL_NAME", "qwen2.5-7b"),
+			VLLMMaxTokens:           vllmMaxTokens,
+			VLLMTimeout:             vllmTimeout,
+			OLLAMABaseURL:           getEnv("OLLAMA_BASE_URL", "http://localhost:11434"),
+			OLLAMAModelName:         getEnv("OLLAMA_MODEL_NAME", "qwen2.5:7b"),
+			OLLAMAMaxTokens:         ollamaMaxTokens,
+			OLLAMATimeout:           ollamaTimeout,
+			TextServiceURL:          getEnv("AI_TEXT_SERVICE_URL", ""),
+			ImageServiceURL:         getEnv("AI_IMAGE_SERVICE_URL", ""),
+			VideoServiceURL:         getEnv("AI_VIDEO_SERVICE_URL", ""),
+			ReviewServiceURL:        getEnv("AI_REVIEW_SERVICE_URL", ""),
+			RunwayAPIKey:            getEnv("RUNWAY_API_KEY", ""),
+			PikaAPIKey:              getEnv("PIKA_API_KEY", ""),
+			ModelProbeInterval:      maxInt(modelProbeInterval, 15),
+			ModelFailThreshold:      maxInt(modelFailThreshold, 1),
+			NarrationOutputDir:      getEnv("NARRATION_OUTPUT_DIR", ".local/videos/narration"),
+			NarrationPublicBase:     strings.TrimRight(getEnv("NARRATION_PUBLIC_BASE", "http://localhost:8003/files/narration"), "/"),
 		},
 		Platform: PlatformConfig{
 			Douyin: PlatformOAuthItem{
@@ -168,6 +220,13 @@ func Load() *Config {
 			},
 		},
 	}
+}
+
+func maxInt(v, min int) int {
+	if v < min {
+		return min
+	}
+	return v
 }
 
 func getEnv(key, defaultValue string) string {

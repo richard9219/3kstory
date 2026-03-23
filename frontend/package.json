@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:demo": "NEXT_PUBLIC_DEMO_MODE=on next dev",
+    "dev:real": "NEXT_PUBLIC_DEMO_MODE=off next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx",
@@ -24,8 +26,10 @@
     "@types/node": "^20.0.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
+    "autoprefixer": "^10.4.27",
     "eslint": "^8.50.0",
     "eslint-config-next": "^14.0.0",
+    "postcss": "^8.5.8",
     "typescript": "^5.2.0"
   }
 }

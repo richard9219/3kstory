@@ -1,0 +1,98 @@
+{
+  "title": "药命效应首批6镜头首帧 Prompt 包",
+  "brand": "三千视界",
+  "project": "药命效应：卧龙入局",
+  "global_style": {
+    "positive": [
+      "historical Chinese political thriller",
+      "Three Kingdoms realism",
+      "cinematic anamorphic frame",
+      "black gold and ink green palette",
+      "volumetric light",
+      "premium texture detail",
+      "serious dramatic tone",
+      "controlled composition"
+    ],
+    "negative": [
+      "cartoon",
+      "anime",
+      "xianxia",
+      "fantasy armor",
+      "neon cyberpunk",
+      "oversaturated colors",
+      "plastic skin",
+      "extra fingers",
+      "deformed hands",
+      "modern props",
+      "cheap TV drama look"
+    ]
+  },
+  "shots": [
+    {
+      "shot_number": 1,
+      "title": "草庐夜读",
+      "subject": "青年诸葛亮、羽扇、地图、草庐烛火",
+      "composition": "medium wide, centered subject, candle in foreground, map on table, negative space behind",
+      "camera": "slow dolly feeling, 50mm anamorphic still frame",
+      "lighting": "single warm candle source with cold ambient darkness",
+      "positive_prompt": "young Zhuge Liang reading maps in a candlelit thatched cottage at night, centered composition, ink-green scholar robe, weathered feather fan on the desk, candle flame bending in the wind, moody Three Kingdoms realism, black gold and ink green palette, cinematic anamorphic frame, volumetric light, premium historical film still",
+      "negative_prompt": "cartoon, anime, xianxia, fantasy armor, bright studio light, smiling expression, neon sci-fi, modern table, extra fingers, plastic skin",
+      "reference_notes": "锁住青年诸葛亮脸型和草庐材质，后续 03、04、05 可沿用"
+    },
+    {
+      "shot_number": 5,
+      "title": "地图上的三分天下",
+      "subject": "青年诸葛亮、地图、沙盘、河山推演",
+      "composition": "top view transitioning into centered visionary tableau",
+      "camera": "overhead cinematic still with implied orbital motion",
+      "lighting": "warm practical light on map, dark edges",
+      "positive_prompt": "strategic map and sand table in front of young Zhuge Liang begin to reveal the divided kingdoms, rivers and provinces rearranging like living geography, elegant restrained visual intelligence, black gold and ink tones, no obvious futuristic UI, cinematic political science fiction inside ancient China, premium film still",
+      "negative_prompt": "video game interface, bright hologram, neon cyberpunk, fantasy magic circle, cartoon map, oversaturated effects",
+      "reference_notes": "抽象化但不要科幻 UI 化，重点是高级、克制、像电影隐喻"
+    },
+    {
+      "shot_number": 11,
+      "title": "江面夜风",
+      "subject": "江面船阵、远处火光、前景羽扇",
+      "composition": "long lens compressed river depth, fan in foreground left, fleet in distance",
+      "camera": "telephoto epic still",
+      "lighting": "moonless storm night with small fire highlights",
+      "positive_prompt": "night river before Red Cliff under pressing storm clouds, distant warships flicker with firelight, a feather fan glides through the foreground, immense tension and scale, historical Chinese epic realism, dark navy and muted ember palette, cinematic telephoto compression, premium atmospheric film still",
+      "negative_prompt": "daylight, fantasy monsters, giant magic fire, glossy poster look, oversaturated orange flames",
+      "reference_notes": "重点是压迫感和前后景层次，不是单纯奇观"
+    },
+    {
+      "shot_number": 20,
+      "title": "扇子解释结算权",
+      "subject": "诸葛亮、蜀锦、盐铁、铸币、制度叠映",
+      "composition": "centered profile with symbolic overlays floating in depth",
+      "camera": "conceptual dramatic close medium",
+      "lighting": "cold dark room with selective gold highlights",
+      "positive_prompt": "older Zhuge Liang in profile as Shu brocade, salt, iron and bronze coin systems overlap in restrained symbolic layers, ancient economic power visualized without modern UI, cerebral and ominous, dark gold, ink black, muted green palette, premium cinematic abstract historical still",
+      "negative_prompt": "infographic, powerpoint, neon charts, cyber interface, cartoon symbols, bright modern finance screen",
+      "reference_notes": "这是制度线镜头，必须高级，不要像科普视频"
+    },
+    {
+      "shot_number": 27,
+      "title": "咳血灯下",
+      "subject": "老年诸葛亮、账册、军图、血迹、孤灯",
+      "composition": "tight side close-up, desk plane visible, face three-quarter angle",
+      "camera": "intimate dramatic portrait",
+      "lighting": "single oil lamp side light with deep falloff",
+      "positive_prompt": "older Zhuge Liang coughing blood beside lamplight while still pressing military maps and ledgers, exhausted genius, gaunt face, scholar beard, quiet tragedy, historical realism, black gold and ink green palette, intimate side-lit cinematic portrait, premium film still",
+      "negative_prompt": "gore horror, melodrama crying, fantasy healing light, TV soap opera look, exaggerated blood",
+      "reference_notes": "一定要压住表演，做出克制的崩溃"
+    },
+    {
+      "shot_number": 30,
+      "title": "羽扇静物收尾",
+      "subject": "羽扇、暗桌、极弱脉冲、终幕气息",
+      "composition": "locked centered still life with negative space",
+      "camera": "85mm still-life cinema frame",
+      "lighting": "low warm top light, almost swallowed by darkness",
+      "positive_prompt": "the feather fan rests alone on a dark desk, one final faint pulse fading into silence, elegiac stillness, black gold palette, minimal composition, historical sci-fi tragedy ending frame, premium cinematic still life",
+      "negative_prompt": "neon prop, fantasy relic, cluttered desk, cartoon object, bright commercial product shot",
+      "reference_notes": "这是全片质感锚点，宁可少元素，也要绝对安静"
+    }
+  ]
+}

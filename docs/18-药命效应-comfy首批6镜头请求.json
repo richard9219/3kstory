@@ -1,0 +1,80 @@
+{
+  "workflow_path": "wan_i2v_shot_template.json",
+  "provider": "comfy",
+  "shared_extra_data": {
+    "prompt_node_id": "11",
+    "prompt_input_name": "text",
+    "image_node_id": "13",
+    "image_input_name": "image",
+    "workflow_inputs": {
+      "12": {
+        "text": "cartoon, anime, xianxia, oversaturated, modern props, plastic skin, extra fingers, broken anatomy"
+      },
+      "15": {
+        "steps": 24,
+        "cfg": 5.5,
+        "frames": 81,
+        "fps": 16
+      },
+      "17": {
+        "filename_prefix": "yaoming-effect-validation"
+      }
+    }
+  },
+  "requests": [
+    {
+      "shot_number": 1,
+      "title": "草庐夜读",
+      "duration": 5,
+      "aspect_ratio": "16:9",
+      "resolution": "720p",
+      "prompt": "young Zhuge Liang reading maps in a candlelit thatched cottage at night, ink-green robe, low wind, deep shadows, slow cinematic push, historical realism",
+      "image_url": "https://example.com/yaoming/shot-01-firstframe.png"
+    },
+    {
+      "shot_number": 5,
+      "title": "地图上的三分天下",
+      "duration": 6,
+      "aspect_ratio": "16:9",
+      "resolution": "720p",
+      "prompt": "strategy map and sand table becoming a living visualization of divided kingdoms, elegant dark gold and ink palette, controlled camera arc, cerebral political sci-fi in ancient China",
+      "image_url": "https://example.com/yaoming/shot-05-firstframe.png"
+    },
+    {
+      "shot_number": 11,
+      "title": "江面夜风",
+      "duration": 5,
+      "aspect_ratio": "16:9",
+      "resolution": "720p",
+      "prompt": "night river before Red Cliff, storm clouds press low, distant firelight flickers across ships, feather fan glides through foreground, tense cinematic atmosphere",
+      "image_url": "https://example.com/yaoming/shot-11-firstframe.png"
+    },
+    {
+      "shot_number": 20,
+      "title": "扇子解释结算权",
+      "duration": 5,
+      "aspect_ratio": "16:9",
+      "resolution": "720p",
+      "prompt": "ancient Shu brocade, salt, iron, and coin systems briefly overlay modern energy empire logic inside Zhuge Liang's mind, restrained abstract montage, elegant and ominous",
+      "image_url": "https://example.com/yaoming/shot-20-firstframe.png"
+    },
+    {
+      "shot_number": 27,
+      "title": "咳血灯下",
+      "duration": 5,
+      "aspect_ratio": "16:9",
+      "resolution": "720p",
+      "prompt": "older Zhuge Liang coughing blood beside lamplight while still pressing military maps and ledgers, exhausted genius, intimate side-lit close-up, tragic historical cinema",
+      "image_url": "https://example.com/yaoming/shot-27-firstframe.png"
+    },
+    {
+      "shot_number": 30,
+      "title": "羽扇静物收尾",
+      "duration": 6,
+      "aspect_ratio": "16:9",
+      "resolution": "720p",
+      "prompt": "the feather fan rests alone on a dark desk, last faint pulse fades into silence, black gold palette, final elegiac stillness, end shot of a historical sci-fi tragedy",
+      "image_url": "https://example.com/yaoming/shot-30-firstframe.png"
+    }
+  ]
+}

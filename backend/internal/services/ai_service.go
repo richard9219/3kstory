@@ -22,13 +22,82 @@ func NewAIService(cfg *config.Config) *AIService {
 }
 
 func (s *AIService) GenerateScript(ctx context.Context, prompt string) (*ScriptResult, error) {
-	switch strings.ToLower(strings.TrimSpace(s.cfg.AI.AIProvider)) {
-	case "local_vllm":
+	return s.generateScriptForTask(ctx, TextTaskLongformScript, prompt)
+}
+
+func (s *AIService) GenerateStoryboard(ctx context.Context, prompt string) (*ScriptResult, error) {
+	return s.generateScriptForTask(ctx, TextTaskStoryboard, prompt)
+}
+
+func (s *AIService) GenerateShotPromptPack(ctx context.Context, prompt string) (*ScriptResult, error) {
+	return s.generateScriptForTask(ctx, TextTaskShotPrompt, prompt)
+}
+
+func (s *AIService) textProvidersForTask(task AITextTask) []TextProvider {
+	defaultProvider := strings.ToLower(strings.TrimSpace(s.cfg.AI.AIProvider))
+	if defaultProvider == "" {
+		defaultProvider = string(TextProviderCloudQwen)
+	}
+
+	var configured []string
+	switch task {
+	case TextTaskLongformScript:
+		configured = parseCSVProviders(s.cfg.AI.ScriptProviders)
+		return s.normalizeTextProviders(mergeProviderLists(configured, defaultProvider, string(TextProviderCloudQwen), string(TextProviderLocalVLLM), string(TextProviderLocalOllama)))
+	case TextTaskNarration:
+		configured = parseCSVProviders(s.cfg.AI.NarrationProviders)
+		return s.normalizeTextProviders(mergeProviderLists(configured, string(TextProviderCloudQwen), defaultProvider, string(TextProviderLocalVLLM), string(TextProviderLocalOllama)))
+	case TextTaskStoryboard:
+		configured = parseCSVProviders(s.cfg.AI.StoryboardProviders)
+		return s.normalizeTextProviders(mergeProviderLists(configured, string(TextProviderLocalVLLM), string(TextProviderLocalOllama), defaultProvider, string(TextProviderCloudQwen)))
+	case TextTaskShotPrompt:
+		configured = parseCSVProviders(s.cfg.AI.ShotPromptProviders)
+		return s.normalizeTextProviders(mergeProviderLists(configured, string(TextProviderLocalVLLM), string(TextProviderLocalOllama), defaultProvider, string(TextProviderCloudQwen)))
+	case TextTaskReview:
+		configured = parseCSVProviders(s.cfg.AI.ReviewProviders)
+		return s.normalizeTextProviders(mergeProviderLists(configured, string(TextProviderCloudQwen), defaultProvider, string(TextProviderLocalVLLM), string(TextProviderLocalOllama)))
+	default:
+		return s.normalizeTextProviders(mergeProviderLists(nil, defaultProvider, string(TextProviderCloudQwen), string(TextProviderLocalVLLM), string(TextProviderLocalOllama)))
+	}
+}
+
+func (s *AIService) normalizeTextProviders(items []string) []TextProvider {
+	out := make([]TextProvider, 0, len(items))
+	for _, item := range items {
+		switch TextProvider(item) {
+		case TextProviderCloudQwen, TextProviderLocalVLLM, TextProviderLocalOllama, TextProviderHybrid:
+			out = append(out, TextProvider(item))
+		}
+	}
+	if len(out) == 0 {
+		return []TextProvider{TextProviderCloudQwen}
+	}
+	return out
+}
+
+func (s *AIService) generateScriptForTask(ctx context.Context, task AITextTask, prompt string) (*ScriptResult, error) {
+	providers := s.textProvidersForTask(task)
+	var lastErr error
+	for _, provider := range providers {
+		res, err := s.generateScriptWithProvider(ctx, provider, prompt)
+		if err == nil {
+			return res, nil
+		}
+		lastErr = err
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("no configured text providers available for task %s", task)
+	}
+	return nil, lastErr
+}
+
+func (s *AIService) generateScriptWithProvider(ctx context.Context, provider TextProvider, prompt string) (*ScriptResult, error) {
+	switch provider {
+	case TextProviderLocalVLLM:
 		return s.generateScriptWithVLLM(ctx, prompt)
-	case "local_ollama":
+	case TextProviderLocalOllama:
 		return s.generateScriptWithOllama(ctx, prompt)
-	case "hybrid":
-		// Minimal failover: vLLM -> Ollama -> cloud_qwen
+	case TextProviderHybrid:
 		if res, err := s.generateScriptWithVLLM(ctx, prompt); err == nil {
 			return res, nil
 		}
@@ -36,7 +105,7 @@ func (s *AIService) GenerateScript(ctx context.Context, prompt string) (*ScriptR
 			return res, nil
 		}
 		return s.generateScriptWithCloudQwen(ctx, prompt)
-	case "cloud_qwen", "":
+	case TextProviderCloudQwen:
 		fallthrough
 	default:
 		return s.generateScriptWithCloudQwen(ctx, prompt)
@@ -279,7 +348,7 @@ func (s *AIService) GenerateNarrationScript(ctx context.Context, req NarrationSc
 	if extra := strings.TrimSpace(req.CreativeBrief); extra != "" {
 		prompt += "。额外创作要求：" + extra
 	}
-	script, err := s.GenerateScript(ctx, prompt)
+	script, err := s.generateScriptForTask(ctx, TextTaskNarration, prompt)
 	if err != nil {
 		segments := []NarrationSegment{{
 			Title:             "开场",

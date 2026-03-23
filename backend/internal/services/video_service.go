@@ -1,13 +1,8 @@
 package services
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"strings"
 	"time"
 
 	"github.com/richard9219/3kstory/internal/config"
@@ -19,34 +14,203 @@ import (
 type VideoProvider string
 
 const (
-	ProviderRunway VideoProvider = "runway"
-	ProviderPika   VideoProvider = "pika"
-	ProviderLocal  VideoProvider = "local"
+	ProviderRunway   VideoProvider = "runway"
+	ProviderPika     VideoProvider = "pika"
+	ProviderLocal    VideoProvider = "local"
+	ProviderMiniMax  VideoProvider = "minimax"
+	ProviderSeedance VideoProvider = "seedance"
+	ProviderComfy    VideoProvider = "comfy"
 )
 
 // VideoService handles video generation via third-party APIs
 type VideoService struct {
-	cfg *config.Config
-	db  *gorm.DB
+	cfg       *config.Config
+	db        *gorm.DB
+	providers map[VideoProvider]videoProviderClient
 }
 
 func NewVideoService(cfg *config.Config, db *gorm.DB) *VideoService {
-	return &VideoService{cfg: cfg, db: db}
+	service := &VideoService{cfg: cfg, db: db}
+	service.providers = map[VideoProvider]videoProviderClient{
+		ProviderRunway:   newRunwayVideoProvider(cfg),
+		ProviderPika:     newPikaVideoProvider(cfg),
+		ProviderLocal:    newLocalVideoProvider(cfg),
+		ProviderMiniMax:  newMiniMaxVideoProvider(cfg),
+		ProviderSeedance: newSeedanceVideoProvider(cfg),
+		ProviderComfy:    newComfyVideoProvider(cfg),
+	}
+	return service
+}
+
+func (s *VideoService) PreferredProvider() VideoProvider {
+	return s.PreferredProviderForTask(VideoTaskGeneric)
+}
+
+func (s *VideoService) PreferredProviderForTask(task VideoTask) VideoProvider {
+	configured := s.ConfiguredProvidersForTask(task)
+	if len(configured) > 0 {
+		return configured[0]
+	}
+	if task == VideoTaskNarration {
+		return ProviderLocal
+	}
+	return ProviderRunway
+}
+
+func (s *VideoService) ConfiguredProvidersForTask(task VideoTask) []VideoProvider {
+	order := s.providerOrderForTask(task)
+	configured := make([]VideoProvider, 0, len(order))
+	for _, provider := range order {
+		client, ok := s.providers[provider]
+		if !ok {
+			continue
+		}
+		if err := client.ValidateConfig(); err == nil {
+			configured = append(configured, provider)
+		}
+	}
+	return configured
+}
+
+func (s *VideoService) providerOrderForTask(task VideoTask) []VideoProvider {
+	var configured []string
+	switch task {
+	case VideoTaskScene:
+		configured = parseCSVProviders(s.cfg.AI.SceneVideoProviders)
+		return normalizeVideoProviders(mergeProviderLists(configured, string(ProviderComfy), string(ProviderLocal), string(ProviderMiniMax), string(ProviderPika), string(ProviderSeedance), string(ProviderRunway)))
+	case VideoTaskNarration:
+		configured = parseCSVProviders(s.cfg.AI.NarrationVideoProviders)
+		return normalizeVideoProviders(mergeProviderLists(configured, string(ProviderLocal), string(ProviderComfy), string(ProviderMiniMax), string(ProviderPika), string(ProviderSeedance), string(ProviderRunway)))
+	case VideoTaskPreview:
+		configured = parseCSVProviders(s.cfg.AI.PreviewVideoProviders)
+		return normalizeVideoProviders(mergeProviderLists(configured, string(ProviderComfy), string(ProviderLocal), string(ProviderMiniMax), string(ProviderPika), string(ProviderSeedance), string(ProviderRunway)))
+	case VideoTaskPremium:
+		configured = parseCSVProviders(s.cfg.AI.PremiumVideoProviders)
+		return normalizeVideoProviders(mergeProviderLists(configured, string(ProviderSeedance), string(ProviderMiniMax), string(ProviderRunway), string(ProviderPika), string(ProviderComfy), string(ProviderLocal)))
+	default:
+		return normalizeVideoProviders(mergeProviderLists(nil, string(ProviderRunway), string(ProviderPika), string(ProviderMiniMax), string(ProviderSeedance), string(ProviderComfy), string(ProviderLocal)))
+	}
+}
+
+func normalizeVideoProviders(items []string) []VideoProvider {
+	out := make([]VideoProvider, 0, len(items))
+	for _, item := range items {
+		switch VideoProvider(item) {
+		case ProviderRunway, ProviderPika, ProviderLocal, ProviderMiniMax, ProviderSeedance, ProviderComfy:
+			out = append(out, VideoProvider(item))
+		}
+	}
+	if len(out) == 0 {
+		return []VideoProvider{ProviderRunway, ProviderPika, ProviderMiniMax, ProviderSeedance, ProviderComfy, ProviderLocal}
+	}
+	return out
+}
+
+func (s *VideoService) ConfiguredProviders() []VideoProvider {
+	return s.ConfiguredProvidersForTask(VideoTaskGeneric)
+}
+
+func (s *VideoService) GenerateVideoForTask(ctx context.Context, task VideoTask, req *VideoGenerationRequest) (*VideoGenerationResult, error) {
+	provider := req.Provider
+	if provider == "" {
+		provider = s.PreferredProviderForTask(task)
+	}
+	req.Provider = provider
+	client, err := s.providerClient(provider)
+	if err != nil {
+		return nil, err
+	}
+	result, err := client.Generate(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (s *VideoService) FailoverGenerateForTask(ctx context.Context, task VideoTask, req *VideoGenerationRequest) (*VideoGenerationResult, error) {
+	if req.Provider == "" {
+		req.Provider = s.PreferredProviderForTask(task)
+	}
+
+	result, err := s.GenerateVideoForTask(ctx, task, req)
+	if err == nil {
+		return result, nil
+	}
+
+	fmt.Printf("Primary provider %s failed for task %s: %v, attempting fallback\n", req.Provider, task, err)
+
+	fallbacks := s.ConfiguredProvidersForTask(task)
+	if len(fallbacks) == 0 {
+		return nil, err
+	}
+
+	var fallbackErr error
+	for _, provider := range fallbacks {
+		if provider == req.Provider {
+			continue
+		}
+		fallbackReq := *req
+		fallbackReq.Provider = provider
+		result, fallbackErr = s.GenerateVideoForTask(ctx, task, &fallbackReq)
+		if fallbackErr == nil {
+			return result, nil
+		}
+	}
+
+	return nil, fmt.Errorf("all configured providers failed for task %s. Primary: %w, Last fallback: %w", task, err, fallbackErr)
+}
+
+func (s *VideoService) PreferredProviderLegacy() VideoProvider {
+	configured := s.ConfiguredProviders()
+	if len(configured) > 0 {
+		return configured[0]
+	}
+	return ProviderRunway
+}
+
+func (s *VideoService) ProviderHealthStatuses(ctx context.Context) []ProviderHealth {
+	order := []VideoProvider{ProviderRunway, ProviderPika, ProviderMiniMax, ProviderSeedance, ProviderComfy, ProviderLocal}
+	statuses := make([]ProviderHealth, 0, len(order))
+	for _, provider := range order {
+		client, ok := s.providers[provider]
+		if !ok {
+			continue
+		}
+		statuses = append(statuses, client.HealthCheck(ctx))
+	}
+	return statuses
+}
+
+func (s *VideoService) providerClient(provider VideoProvider) (videoProviderClient, error) {
+	client, ok := s.providers[provider]
+	if !ok {
+		return nil, &VideoProviderError{Provider: provider, Kind: VideoErrorUnsupported, Message: "provider is not registered"}
+	}
+	return client, nil
 }
 
 // VideoGenerationRequest represents a video generation request
 type VideoGenerationRequest struct {
-	ProjectID         uint
-	SceneID           uint
-	Prompt            string
-	Provider          VideoProvider
-	ImageURL          string // for image-to-video
-	Duration          int    // seconds (1-60)
-	AspectRatio       string // "16:9" or "9:16"
-	Mode              string
-	SourceVideoPath   string
-	SourceVideoURL    string
-	NarrationSegments []LocalNarrationSegment
+	ProjectID          uint
+	SceneID            uint
+	Prompt             string
+	Provider           VideoProvider
+	Model              string
+	ImageURL           string // for image-to-video
+	LastFrameImageURL  string
+	ReferenceImageURLs []string
+	Duration           int    // seconds (1-60)
+	AspectRatio        string // "16:9" or "9:16"
+	Resolution         string
+	Mode               string
+	Seed               int
+	WorkflowPath       string
+	Workflow           models.JSONMap
+	CallbackURL        string
+	ExtraData          models.JSONMap
+	SourceVideoPath    string
+	SourceVideoURL     string
+	NarrationSegments  []LocalNarrationSegment
 }
 
 type LocalNarrationSegment struct {
@@ -71,332 +235,21 @@ type VideoGenerationResult struct {
 
 // GenerateVideo handles video generation with specified provider
 func (s *VideoService) GenerateVideo(ctx context.Context, req *VideoGenerationRequest) (*VideoGenerationResult, error) {
-	switch req.Provider {
-	case ProviderRunway:
-		return s.generateWithRunway(ctx, req)
-	case ProviderPika:
-		return s.generateWithPika(ctx, req)
-	case ProviderLocal:
-		return s.generateWithLocalService(ctx, req)
-	default:
-		return nil, fmt.Errorf("unsupported video provider: %s", req.Provider)
-	}
-}
-
-func (s *VideoService) generateWithLocalService(ctx context.Context, req *VideoGenerationRequest) (*VideoGenerationResult, error) {
-	if s.cfg.AI.VideoServiceURL == "" {
-		return nil, fmt.Errorf("AI_VIDEO_SERVICE_URL is not configured")
-	}
-
-	endpoint := s.cfg.AI.VideoServiceURL
-	requestBody := map[string]interface{}{
-		"prompt":            req.Prompt,
-		"image_url":         req.ImageURL,
-		"duration":          req.Duration,
-		"aspect_ratio":      req.AspectRatio,
-		"scene_id":          req.SceneID,
-		"project_id":        req.ProjectID,
-		"source_video_path": req.SourceVideoPath,
-		"source_video_url":  req.SourceVideoURL,
-	}
-	if strings.TrimSpace(req.Mode) != "" {
-		requestBody["mode"] = req.Mode
-	}
-	if len(req.NarrationSegments) > 0 {
-		requestBody["segments"] = req.NarrationSegments
-	}
-
-	jsonData, _ := json.Marshal(requestBody)
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return nil, err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{Timeout: 120 * time.Second}
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("local video service request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("local video service error (status %d): %s", resp.StatusCode, string(body))
-	}
-
-	// Flexible response:
-	// - {"video_id":"...","status":"processing","video_url":"..."}
-	// - or {"id":"...","status":"...","output":["..."]}
-	var apiResp struct {
-		VideoID  string   `json:"video_id"`
-		Status   string   `json:"status"`
-		VideoURL string   `json:"video_url"`
-		ID       string   `json:"id"`
-		Output   []string `json:"output"`
-	}
-	if err := json.Unmarshal(body, &apiResp); err != nil {
-		return nil, fmt.Errorf("failed to parse local video response: %w", err)
-	}
-
-	videoID := apiResp.VideoID
-	if videoID == "" {
-		videoID = apiResp.ID
-	}
-	videoURL := apiResp.VideoURL
-	if videoURL == "" && len(apiResp.Output) > 0 {
-		videoURL = apiResp.Output[0]
-	}
-	status := apiResp.Status
-	if status == "" {
-		status = "processing"
-	}
-
-	return &VideoGenerationResult{
-		VideoID:    videoID,
-		VideoURL:   videoURL,
-		Provider:   ProviderLocal,
-		Status:     status,
-		Duration:   req.Duration,
-		Resolution: "",
-		CreatedAt:  time.Now(),
-	}, nil
-}
-
-// generateWithRunway generates video using Runway API
-func (s *VideoService) generateWithRunway(ctx context.Context, req *VideoGenerationRequest) (*VideoGenerationResult, error) {
-	// Runway API endpoint for Gen-3 model
-	endpoint := "https://api.runwayml.com/v1/generations"
-
-	requestBody := map[string]interface{}{
-		"model": "gen3",
-		"prompt": map[string]interface{}{
-			"text": req.Prompt,
-		},
-		"duration":     req.Duration,
-		"aspect_ratio": req.AspectRatio,
-	}
-
-	// If image URL provided, use image-to-video generation
-	if req.ImageURL != "" {
-		requestBody["prompt"] = map[string]interface{}{
-			"image": req.ImageURL,
-			"text":  req.Prompt,
-		}
-	}
-
-	jsonData, _ := json.Marshal(requestBody)
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return nil, err
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+s.cfg.AI.RunwayAPIKey)
-
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("runway API request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		return nil, fmt.Errorf("runway API error (status %d): %s", resp.StatusCode, string(body))
-	}
-
-	var apiResp struct {
-		ID        string   `json:"id"`
-		Status    string   `json:"status"`
-		Output    []string `json:"output"`
-		CreatedAt string   `json:"created_at"`
-	}
-
-	if err := json.Unmarshal(body, &apiResp); err != nil {
-		return nil, fmt.Errorf("failed to parse runway response: %w", err)
-	}
-
-	result := &VideoGenerationResult{
-		VideoID:    apiResp.ID,
-		Provider:   ProviderRunway,
-		Status:     apiResp.Status,
-		Duration:   req.Duration,
-		Resolution: "1080p",
-		CreatedAt:  time.Now(),
-	}
-
-	// If generation completed immediately
-	if len(apiResp.Output) > 0 {
-		result.VideoURL = apiResp.Output[0]
-		result.Status = "completed"
-		now := time.Now()
-		result.CompletedAt = &now
-	}
-
-	return result, nil
-}
-
-// generateWithPika generates video using Pika API
-func (s *VideoService) generateWithPika(ctx context.Context, req *VideoGenerationRequest) (*VideoGenerationResult, error) {
-	// Pika API endpoint
-	endpoint := "https://api.pika.art/v1/generations"
-
-	// Prepare request body
-	requestBody := map[string]interface{}{
-		"prompt":       req.Prompt,
-		"duration":     req.Duration,
-		"aspect_ratio": req.AspectRatio,
-	}
-
-	// If image URL provided, use image expansion mode
-	if req.ImageURL != "" {
-		requestBody["mode"] = "image-expand"
-		requestBody["image_url"] = req.ImageURL
-	}
-
-	jsonData, _ := json.Marshal(requestBody)
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return nil, err
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+s.cfg.AI.PikaAPIKey)
-
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("pika API request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		return nil, fmt.Errorf("pika API error (status %d): %s", resp.StatusCode, string(body))
-	}
-
-	var apiResp struct {
-		GenerationID string `json:"generation_id"`
-		Status       string `json:"status"`
-		VideoURL     string `json:"video_url"`
-		CreatedAt    string `json:"created_at"`
-	}
-
-	if err := json.Unmarshal(body, &apiResp); err != nil {
-		return nil, fmt.Errorf("failed to parse pika response: %w", err)
-	}
-
-	result := &VideoGenerationResult{
-		VideoID:    apiResp.GenerationID,
-		VideoURL:   apiResp.VideoURL,
-		Provider:   ProviderPika,
-		Status:     apiResp.Status,
-		Duration:   req.Duration,
-		Resolution: "1080p",
-		CreatedAt:  time.Now(),
-	}
-
-	return result, nil
+	return s.GenerateVideoForTask(ctx, VideoTaskGeneric, req)
 }
 
 // PollVideoStatus checks the status of a video generation job
 func (s *VideoService) PollVideoStatus(ctx context.Context, videoID string, provider VideoProvider) (*VideoGenerationResult, error) {
-	var endpoint string
-	var authHeader string
-
-	switch provider {
-	case ProviderRunway:
-		endpoint = fmt.Sprintf("https://api.runwayml.com/v1/generations/%s", videoID)
-		authHeader = "Bearer " + s.cfg.AI.RunwayAPIKey
-	case ProviderPika:
-		endpoint = fmt.Sprintf("https://api.pika.art/v1/generations/%s", videoID)
-		authHeader = "Bearer " + s.cfg.AI.PikaAPIKey
-	case ProviderLocal:
-		if s.cfg.AI.VideoServiceURL == "" {
-			return nil, fmt.Errorf("AI_VIDEO_SERVICE_URL is not configured")
-		}
-		endpoint = fmt.Sprintf("%s/%s", strings.TrimRight(s.cfg.AI.VideoServiceURL, "/"), videoID)
-	default:
-		return nil, fmt.Errorf("unsupported provider: %s", provider)
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
+	client, err := s.providerClient(provider)
 	if err != nil {
 		return nil, err
 	}
-
-	if authHeader != "" {
-		httpReq.Header.Set("Authorization", authHeader)
-	}
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("status poll failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status poll error (status %d): %s", resp.StatusCode, string(body))
-	}
-
-	var statusResp struct {
-		ID       string   `json:"id"`
-		Status   string   `json:"status"`
-		Output   []string `json:"output"`
-		VideoURL string   `json:"video_url"`
-	}
-
-	if err := json.Unmarshal(body, &statusResp); err != nil {
-		return nil, fmt.Errorf("failed to parse status response: %w", err)
-	}
-
-	result := &VideoGenerationResult{
-		VideoID:   statusResp.ID,
-		Provider:  provider,
-		Status:    statusResp.Status,
-		CreatedAt: time.Now(),
-	}
-
-	// Get video URL from response
-	if statusResp.VideoURL != "" {
-		result.VideoURL = statusResp.VideoURL
-	} else if len(statusResp.Output) > 0 {
-		result.VideoURL = statusResp.Output[0]
-	}
-
-	return result, nil
+	return client.PollStatus(ctx, videoID)
 }
 
 // FailoverGenerate attempts to generate video with primary provider, falls back to secondary
 func (s *VideoService) FailoverGenerate(ctx context.Context, req *VideoGenerationRequest) (*VideoGenerationResult, error) {
-	// Try primary provider
-	result, err := s.GenerateVideo(ctx, req)
-	if err == nil {
-		return result, nil
-	}
-
-	// Log the error and attempt fallback
-	fmt.Printf("Primary provider %s failed: %v, attempting fallback\n", req.Provider, err)
-
-	// Switch to fallback provider
-	if req.Provider == ProviderRunway {
-		req.Provider = ProviderPika
-	} else {
-		req.Provider = ProviderRunway
-	}
-
-	result, fallbackErr := s.GenerateVideo(ctx, req)
-	if fallbackErr != nil {
-		return nil, fmt.Errorf("both providers failed. Primary: %w, Fallback: %w", err, fallbackErr)
-	}
-
-	return result, nil
+	return s.FailoverGenerateForTask(ctx, VideoTaskGeneric, req)
 }
 
 // GenerateVideoTask represents an async video generation task

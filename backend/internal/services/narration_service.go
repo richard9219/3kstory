@@ -50,6 +50,10 @@ type GenerateNarrationInput struct {
 }
 
 func (s *NarrationService) GenerateNarrationVideo(ctx context.Context, in GenerateNarrationInput) (*models.VideoTask, error) {
+	if in.Provider == "" {
+		in.Provider = s.videoService.PreferredProviderForTask(VideoTaskNarration)
+	}
+
 	narration, err := s.aiService.GenerateNarrationScript(ctx, NarrationScriptRequest{
 		MovieTitle:     in.MovieTitle,
 		Synopsis:       in.Synopsis,
@@ -85,7 +89,7 @@ func (s *NarrationService) GenerateNarrationVideo(ctx context.Context, in Genera
 	}
 
 	videoPrompt := fmt.Sprintf("《%s》%s风格解说。%s", in.MovieTitle, in.Style, strings.Join(texts, " "))
-	videoResult, err := s.videoService.GenerateVideo(ctx, &VideoGenerationRequest{
+	videoResult, err := s.videoService.FailoverGenerateForTask(ctx, VideoTaskNarration, &VideoGenerationRequest{
 		ProjectID:         in.ProjectID,
 		Prompt:            videoPrompt,
 		Provider:          in.Provider,

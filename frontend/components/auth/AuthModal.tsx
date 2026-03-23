@@ -80,9 +80,9 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
             transition={{ type: 'spring', duration: 0.5 }}
             className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md z-50"
           >
-            <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+            <div className="factory-panel rounded-2xl shadow-2xl overflow-hidden border border-white/20">
               {/* Header */}
-              <div className="relative bg-gradient-to-r from-purple-500 to-pink-500 p-6 text-white">
+              <div className="relative bg-[linear-gradient(95deg,#113055,#1b4b71,#2f7398)] p-6 text-white">
                 <button
                   onClick={onClose}
                   className="absolute top-4 right-4 text-white/80 hover:text-white transition-colors"
@@ -103,7 +103,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm"
+                    className="mb-4 p-3 bg-red-500/10 border border-red-500/40 rounded-lg text-red-200 text-sm"
                   >
                     {error}
                   </motion.div>
@@ -112,7 +112,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {mode === 'register' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-200 mb-1">
                         用户名
                       </label>
                       <div className="relative">
@@ -123,7 +123,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                           value={formData.username}
                           onChange={handleChange}
                           required
-                          className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all"
+                          className="factory-input w-full pl-10 pr-4 py-3 rounded-lg transition-all"
                           placeholder="请输入用户名"
                         />
                       </div>
@@ -131,7 +131,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                   )}
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-200 mb-1">
                       邮箱
                     </label>
                     <div className="relative">
@@ -142,14 +142,14 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                         value={formData.email}
                         onChange={handleChange}
                         required
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all"
+                        className="factory-input w-full pl-10 pr-4 py-3 rounded-lg transition-all"
                         placeholder="请输入邮箱"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-200 mb-1">
                       密码
                     </label>
                     <div className="relative">
@@ -160,7 +160,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                         value={formData.password}
                         onChange={handleChange}
                         required
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all"
+                        className="factory-input w-full pl-10 pr-4 py-3 rounded-lg transition-all"
                         placeholder="请输入密码"
                       />
                     </div>
@@ -169,7 +169,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-semibold hover:shadow-lg hover:shadow-purple-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="w-full factory-button-primary disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? (
                       <>
@@ -189,7 +189,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                       setMode(mode === 'login' ? 'register' : 'login');
                       setError('');
                     }}
-                    className="text-purple-600 hover:text-purple-700 font-medium"
+                    className="text-cyan-200 hover:text-cyan-100 font-medium"
                   >
                     {mode === 'login' ? '还没有账号？立即注册' : '已有账号？立即登录'}
                   </button>

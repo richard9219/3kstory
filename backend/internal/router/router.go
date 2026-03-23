@@ -1,6 +1,8 @@
 package router
 
 import (
+	"context"
+
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"github.com/richard9219/3kstory/internal/config"
@@ -14,6 +16,10 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, rdb *redis.Client, cfg *config.Conf
 	aiService := services.NewAIService(cfg)
 	projectService := services.NewProjectService(db, aiService)
 	videoService := services.NewVideoService(cfg, db)
+	modelCenterService := services.NewModelCenterService(cfg, videoService)
+	modelCenterService.StartBackgroundProbe(context.Background())
+	assetService := services.NewAssetService(db)
+	storyboardService := services.NewStoryboardService(db)
 	ttsService := services.NewTTSService()
 	narrationService := services.NewNarrationService(db, cfg, aiService, videoService, ttsService)
 	platformService := services.NewPlatformService(db, cfg, &services.RedisAdapter{Client: rdb})
@@ -25,6 +31,9 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, rdb *redis.Client, cfg *config.Conf
 	platformHandler := handlers.NewPlatformHandler(platformService)
 	narrationHandler := handlers.NewNarrationHandler(projectService, narrationService)
 	analyticsHandler := handlers.NewAnalyticsHandler(analyticsService, platformService)
+	modelCenterHandler := handlers.NewModelCenterHandler(modelCenterService)
+	assetHandler := handlers.NewAssetHandler(assetService)
+	storyboardHandler := handlers.NewStoryboardHandler(storyboardService)
 
 	v1 := r.Group("/api/v1")
 	{
@@ -44,6 +53,24 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, rdb *redis.Client, cfg *config.Conf
 		authorized := v1.Group("")
 		authorized.Use(middleware.AuthRequired(cfg))
 		{
+			modelCenter := authorized.Group("/model-center")
+			{
+				modelCenter.GET("/overview", modelCenterHandler.GetOverview)
+				modelCenter.POST("/probe", modelCenterHandler.TriggerProbe)
+			}
+
+			assets := authorized.Group("/assets")
+			{
+				assets.GET("/roles", assetHandler.ListRoleAssets)
+				assets.POST("/roles", assetHandler.CreateRoleAsset)
+				assets.PUT("/roles/:id", assetHandler.UpdateRoleAsset)
+				assets.DELETE("/roles/:id", assetHandler.DeleteRoleAsset)
+				assets.GET("/prompt-templates", assetHandler.ListPromptTemplates)
+				assets.POST("/prompt-templates", assetHandler.CreatePromptTemplate)
+				assets.PUT("/prompt-templates/:id", assetHandler.UpdatePromptTemplate)
+				assets.DELETE("/prompt-templates/:id", assetHandler.DeletePromptTemplate)
+			}
+
 			analytics := authorized.Group("/analytics")
 			{
 				analytics.GET("/summary", analyticsHandler.GetSummary)
@@ -79,6 +106,13 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, rdb *redis.Client, cfg *config.Conf
 				projects.POST("/:id/video-status", videoHandler.GetVideoStatus)
 				projects.GET("/:id/videos", videoHandler.ListVideos)
 				projects.DELETE("/:id/video/:videoID", videoHandler.CancelVideoGeneration)
+				projects.GET("/:id/storyboard-shots", storyboardHandler.ListProjectShots)
+				projects.POST("/:id/storyboard-shots", storyboardHandler.CreateShot)
+				projects.POST("/:id/storyboard-shots/import", storyboardHandler.ImportShots)
+				projects.POST("/:id/storyboard-shots/bootstrap", storyboardHandler.BootstrapFromScenes)
+				projects.POST("/:id/storyboard-shots/reorder", storyboardHandler.ReorderShots)
+				projects.POST("/:id/storyboard-shots/version", storyboardHandler.CreateShotVersion)
+				projects.GET("/:id/storyboard-shots/version-tree", storyboardHandler.GetVersionTree)
 			}
 		}
 	}

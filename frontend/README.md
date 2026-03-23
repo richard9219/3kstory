@@ -22,6 +22,7 @@ npm install
 # 创建 .env.local 文件
 # NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
 # NEXT_PUBLIC_WS_URL=ws://localhost:8080
+# NEXT_PUBLIC_DEMO_MODE=auto
 
 # 3. 启动开发服务器
 npm run dev
@@ -162,7 +163,14 @@ npm run test            # 运行测试
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
 NEXT_PUBLIC_WS_URL=ws://localhost:8080
+NEXT_PUBLIC_DEMO_MODE=auto
 ```
+
+### 演示模式开关
+
+- `NEXT_PUBLIC_DEMO_MODE=on`：强制前端演示模式（不请求后端，直接返回前端静态兜底数据）
+- `NEXT_PUBLIC_DEMO_MODE=auto`：默认模式（先请求后端，后端不可达时自动兜底）
+- `NEXT_PUBLIC_DEMO_MODE=off`：关闭兜底（必须有后端）
 
 ---
 

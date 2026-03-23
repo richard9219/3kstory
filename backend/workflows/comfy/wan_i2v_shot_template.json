@@ -1,0 +1,66 @@
+{
+  "10": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "wan2.2_i2v.safetensors"
+    }
+  },
+  "11": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["10", 1],
+      "text": "placeholder positive prompt"
+    }
+  },
+  "12": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["10", 1],
+      "text": "placeholder negative prompt"
+    }
+  },
+  "13": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "placeholder-reference-frame.png"
+    }
+  },
+  "14": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["13", 0],
+      "vae": ["10", 2]
+    }
+  },
+  "15": {
+    "class_type": "WanImageToVideoSampler",
+    "inputs": {
+      "model": ["10", 0],
+      "positive": ["11", 0],
+      "negative": ["12", 0],
+      "latent_image": ["14", 0],
+      "steps": 24,
+      "cfg": 5.5,
+      "seed": 42,
+      "frames": 81,
+      "fps": 16
+    }
+  },
+  "16": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["15", 0],
+      "vae": ["10", 2]
+    }
+  },
+  "17": {
+    "class_type": "VHS_VideoCombine",
+    "inputs": {
+      "images": ["16", 0],
+      "frame_rate": 16,
+      "loop_count": 0,
+      "filename_prefix": "3kstory-shot",
+      "format": "video/h264-mp4"
+    }
+  }
+}

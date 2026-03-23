@@ -609,8 +609,41 @@ DATABASE_URL=postgres://postgres:password@postgres:5432/3k_vedio
 REDIS_URL=redis://redis:6379
 
 # AI 服务
+AI_PROVIDER=cloud_qwen
 QWEN_API_KEY=sk-xxx
-QWEN_MODEL=qwen-max-latest
+QWEN_API_BASE=https://dashscope.aliyuncs.com/api/v1
+VLLM_BASE_URL=http://localhost:8000
+OLLAMA_BASE_URL=http://localhost:11434
+
+# 任务级模型路由（逗号分隔，按优先级回退）
+AI_SCRIPT_PROVIDERS=cloud_qwen,local_vllm,local_ollama
+AI_NARRATION_PROVIDERS=cloud_qwen,local_vllm,local_ollama
+AI_STORYBOARD_PROVIDERS=local_vllm,local_ollama,cloud_qwen
+AI_SHOT_PROMPT_PROVIDERS=local_vllm,local_ollama,cloud_qwen
+AI_REVIEW_PROVIDERS=cloud_qwen,local_vllm
+
+# 视频任务路由（逗号分隔，按优先级回退）
+AI_SCENE_VIDEO_PROVIDERS=local,pika,runway
+AI_NARRATION_VIDEO_PROVIDERS=local,pika,runway
+AI_PREVIEW_VIDEO_PROVIDERS=local,pika,runway
+AI_PREMIUM_VIDEO_PROVIDERS=runway,pika,local
+
+RUNWAY_API_KEY=rwy-xxx
+PIKA_API_KEY=pika-xxx
+MINIMAX_API_KEY=minimax-xxx
+MINIMAX_API_BASE=https://api.minimax.io
+MINIMAX_VIDEO_MODEL=MiniMax-Hailuo-2.3-Fast
+MINIMAX_VIDEO_RESOLUTION=768P
+SEEDANCE_API_KEY=seedance-xxx
+SEEDANCE_API_BASE=https://<your-byteplus-endpoint>
+SEEDANCE_CREATE_PATH=/contents/generations/tasks
+SEEDANCE_STATUS_PATH=/contents/generations/tasks/{task_id}
+SEEDANCE_VIDEO_MODEL=seedance-1-0-pro-250528
+SEEDANCE_VIDEO_RESOLUTION=720p
+COMFY_API_KEY=
+COMFY_BASE_URL=http://localhost:8188
+COMFY_WORKFLOW_DIR=.local/comfy-workflows
+COMFY_OUTPUT_NODE_ID=
 
 # 应用
 JWT_SECRET=your-super-secret-jwt-key-change-in-production
@@ -623,6 +656,13 @@ OSS_ACCESS_KEY=xxx
 OSS_SECRET_KEY=xxx
 OSS_BUCKET=3kstory
 ```
+
+推荐策略：
+
+- `剧本/旁白` 优先 `cloud_qwen`
+- `分镜/镜头提示词` 优先 `local_vllm` 或 `local_ollama`
+- `预览/批量验证视频` 优先 `comfy` 或 `local`
+- `关键展示镜头` 再切到 `seedance / minimax / runway`
 
 ---
 

@@ -27,7 +27,7 @@ type GenerateNarrationRequest struct {
 	TargetDuration  int     `json:"target_duration" binding:"min=10,max=600"`
 	Voice           string  `json:"voice"`
 	Speed           float64 `json:"speed" binding:"min=0.5,max=2"`
-	Provider        string  `json:"provider" binding:"omitempty,oneof=runway pika local"`
+	Provider        string  `json:"provider" binding:"omitempty,oneof=runway pika local minimax seedance comfy"`
 	AspectRatio     string  `json:"aspect_ratio" binding:"omitempty,oneof=16:9 9:16"`
 	SourceVideoPath string  `json:"source_video_path"`
 	SourceVideoURL  string  `json:"source_video_url"`
@@ -71,9 +71,6 @@ func (h *NarrationHandler) GenerateNarrationVideo(c *gin.Context) {
 	}
 	if req.TargetDuration == 0 {
 		req.TargetDuration = 90
-	}
-	if req.Provider == "" {
-		req.Provider = string(services.ProviderLocal)
 	}
 	if req.AspectRatio == "" {
 		req.AspectRatio = "16:9"

@@ -24,12 +24,17 @@ func NewVideoHandler(videoService *services.VideoService, projectService *servic
 
 // GenerateVideoRequest represents the request to generate a video
 type GenerateVideoRequest struct {
-	SceneID     uint   `json:"scene_id" binding:"required"`
-	Prompt      string `json:"prompt" binding:"required"`
-	Provider    string `json:"provider" binding:"required,oneof=runway pika local"`
-	ImageURL    string `json:"image_url"`
-	Duration    int    `json:"duration" binding:"min=1,max=60"`
-	AspectRatio string `json:"aspect_ratio" binding:"oneof=16:9 9:16"`
+	SceneID      uint           `json:"scene_id" binding:"required"`
+	Prompt       string         `json:"prompt" binding:"required"`
+	Provider     string         `json:"provider" binding:"omitempty,oneof=runway pika local minimax seedance comfy"`
+	Model        string         `json:"model"`
+	ImageURL     string         `json:"image_url"`
+	Resolution   string         `json:"resolution"`
+	WorkflowPath string         `json:"workflow_path"`
+	Workflow     models.JSONMap `json:"workflow"`
+	ExtraData    models.JSONMap `json:"extra_data"`
+	Duration     int            `json:"duration" binding:"min=1,max=60"`
+	AspectRatio  string         `json:"aspect_ratio" binding:"oneof=16:9 9:16"`
 }
 
 // GenerateVideoResponse represents the response from video generation
@@ -82,20 +87,28 @@ func (h *VideoHandler) GenerateVideo(c *gin.Context) {
 	if req.AspectRatio == "" {
 		req.AspectRatio = "16:9"
 	}
+	if req.Provider == "" {
+		req.Provider = string(h.videoService.PreferredProviderForTask(services.VideoTaskScene))
+	}
 
 	// Create video generation request
 	videoReq := &services.VideoGenerationRequest{
-		ProjectID:   uint(projectID),
-		SceneID:     req.SceneID,
-		Prompt:      req.Prompt,
-		Provider:    services.VideoProvider(req.Provider),
-		ImageURL:    req.ImageURL,
-		Duration:    req.Duration,
-		AspectRatio: req.AspectRatio,
+		ProjectID:    uint(projectID),
+		SceneID:      req.SceneID,
+		Prompt:       req.Prompt,
+		Provider:     services.VideoProvider(req.Provider),
+		Model:        req.Model,
+		ImageURL:     req.ImageURL,
+		Resolution:   req.Resolution,
+		WorkflowPath: req.WorkflowPath,
+		Workflow:     req.Workflow,
+		ExtraData:    req.ExtraData,
+		Duration:     req.Duration,
+		AspectRatio:  req.AspectRatio,
 	}
 
 	// Generate video with failover support
-	result, err := h.videoService.FailoverGenerate(c, videoReq)
+	result, err := h.videoService.FailoverGenerateForTask(c, services.VideoTaskScene, videoReq)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Video generation failed",
@@ -121,11 +134,16 @@ func (h *VideoHandler) GenerateVideo(c *gin.Context) {
 		Status:    result.Status,
 		VideoURL:  result.VideoURL,
 		InputData: models.JSONMap{
-			"prompt":       req.Prompt,
-			"provider":     req.Provider,
-			"image_url":    req.ImageURL,
-			"duration":     req.Duration,
-			"aspect_ratio": req.AspectRatio,
+			"prompt":        req.Prompt,
+			"provider":      req.Provider,
+			"model":         req.Model,
+			"image_url":     req.ImageURL,
+			"resolution":    req.Resolution,
+			"workflow_path": req.WorkflowPath,
+			"workflow":      req.Workflow,
+			"extra_data":    req.ExtraData,
+			"duration":      req.Duration,
+			"aspect_ratio":  req.AspectRatio,
 		},
 		CompletedAt: completedAt,
 	}
@@ -150,7 +168,7 @@ func (h *VideoHandler) GenerateVideo(c *gin.Context) {
 // GetVideoStatusRequest represents the request to get video status
 type GetVideoStatusRequest struct {
 	VideoID  string `json:"video_id" binding:"required"`
-	Provider string `json:"provider" binding:"required,oneof=runway pika local"`
+	Provider string `json:"provider" binding:"required,oneof=runway pika local minimax seedance comfy"`
 }
 
 // GetVideoStatus retrieves the status of a video generation job
