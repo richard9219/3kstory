@@ -1,5 +1,7 @@
 # 3kstory: AI 影视作品生成平台 🎬
 
+<!-- markdownlint-disable MD031 MD032 MD034 MD040 MD047 MD060 -->
+
 一个专注于**AI生成影视作品**（视频、电影、短剧等）的创作平台，提供强大的AI工具集，同时也会生成优质作品。
 
 > 从 Prompt → 完整影视作品，只需 5 分钟
@@ -25,6 +27,13 @@
 - Milestone 1.3：端到端完整工作流
 
 **Phase 2-3**：自托管优化、性能提升、作品库扩展
+
+### 2026-03 进展（导演工作台升级）
+
+- 分镜中心升级为可执行时间轴（镜头级轨道、起始时间、过渡类型、锁定状态）
+- 导演版合成从基础拼接升级为按 `transition_type` 渲染转场
+- 支持镜头级生成与局部重生（版本分支）
+- 导演版出片接入发布前质量门禁与平台发布流程（需已绑定平台账号）
 
 详细开发里程碑请查看：
 - 后端里程碑：[backend/README.md](./backend/README.md#-开发里程碑)
@@ -119,7 +128,7 @@ cp .env.example .env
 docker-compose up -d
 
 # 3. 验证后端
-curl http://localhost:8080/api/v1/health
+docker-compose ps
 
 # 4. 查看日志
 docker-compose logs -f backend
@@ -185,7 +194,28 @@ bash quick-video-test.sh
 - 🔐 用户认证（注册、登录、用户信息）
 - 📁 项目管理（创建、列表、详情、更新、删除）
 - 🎬 场景生成（AI 生成场景、视频生成）
+- 🎞️ 导演工作台（可执行时间轴、镜头级生成、局部重生、导演版合成）
+- 🛡️ 发布门禁与平台发布（质量阈值校验、渠道账号绑定后发布）
 - 🚀 完整工作流（端到端影视作品生成）
+
+导演工作台关键接口：
+
+- `GET /api/v1/projects/:id/storyboard-timeline`
+- `PATCH /api/v1/projects/:id/storyboard-shots/:shotID`
+- `POST /api/v1/projects/:id/storyboard-shots/:shotID/generate`
+- `POST /api/v1/projects/:id/storyboard-shots/:shotID/regenerate`
+- `POST /api/v1/projects/:id/storyboard-timeline/render`
+- `POST /api/v1/projects/:id/storyboard-timeline/exports/:exportID/auto-publish`
+- `POST /api/v1/projects/:id/storyboard-timeline/exports/:exportID/publish`
+- `GET /api/v1/projects/:id/storyboard-timeline/publish-history`
+- `POST /api/v1/projects/:id/storyboard-timeline/publish-history/:recordID/retry`
+
+平台上传适配层环境变量（如需接入真实 API，请按平台控制台配置）：
+
+- `DOUYIN_PUBLISH_API`
+- `XIAOHONGSHU_PUBLISH_API`
+- `BILIBILI_PUBLISH_API`
+- `WEIBO_PUBLISH_API`
 
 ---
 
@@ -198,6 +228,8 @@ bash quick-video-test.sh
 | [docs/01-竞品分析.md](./docs/01-竞品分析.md) | 国内外竞品分析，差异化定位 |
 | [docs/02-技术架构.md](./docs/02-技术架构.md) | 系统架构、数据库设计 |
 | [docs/03-短剧创作流程.md](./docs/03-短剧创作流程.md) | 用户流程、算法设计 |
+| [docs/20-导演工作台时间轴与发布流程.md](./docs/20-导演工作台时间轴与发布流程.md) | 可执行时间轴、转场合成、门禁发布闭环 |
+| [docs/21-导演Agent使用手册与API示例.md](./docs/21-导演Agent使用手册与API示例.md) | 导演 Agent 页面操作与 API 请求体示例 |
 
 ### 部署和集成文档
 

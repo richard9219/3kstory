@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/richard9219/3kstory/internal/config"
@@ -16,20 +17,47 @@ import (
 )
 
 type NarrationService struct {
-	db           *gorm.DB
-	cfg          *config.Config
-	aiService    *AIService
-	videoService *VideoService
-	ttsService   *TTSService
+	db            *gorm.DB
+	cfg           *config.Config
+	aiService     *AIService
+	videoService  *VideoService
+	ttsService    *TTSService
+	advancedQueue chan advancedNarrationJob
+	queueOnce     sync.Once
+}
+
+type advancedNarrationJob struct {
+	JobID string
+	Input GenerateNarrationAdvancedInput
 }
 
 func NewNarrationService(db *gorm.DB, cfg *config.Config, aiService *AIService, videoService *VideoService, ttsService *TTSService) *NarrationService {
-	return &NarrationService{
-		db:           db,
-		cfg:          cfg,
-		aiService:    aiService,
-		videoService: videoService,
-		ttsService:   ttsService,
+	service := &NarrationService{
+		db:            db,
+		cfg:           cfg,
+		aiService:     aiService,
+		videoService:  videoService,
+		ttsService:    ttsService,
+		advancedQueue: make(chan advancedNarrationJob, 128),
+	}
+	service.startAdvancedWorkers()
+	return service
+}
+
+func (s *NarrationService) startAdvancedWorkers() {
+	s.queueOnce.Do(func() {
+		workers := s.cfg.AI.VideoJobQueueWorkers
+		for i := 0; i < workers; i++ {
+			go s.runAdvancedWorker(i + 1)
+		}
+	})
+}
+
+func (s *NarrationService) runAdvancedWorker(workerID int) {
+	for item := range s.advancedQueue {
+		ctx := context.Background()
+		_ = workerID
+		s.processAdvancedNarrationJob(ctx, item.JobID, item.Input)
 	}
 }
 

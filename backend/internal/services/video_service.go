@@ -255,15 +255,21 @@ func (s *VideoService) FailoverGenerate(ctx context.Context, req *VideoGeneratio
 // GenerateVideoTask represents an async video generation task
 type GenerateVideoTask struct {
 	ID          uint
+	JobID       string
 	ProjectID   uint
 	UserID      uint
 	SceneID     uint
+	CandidateNo int
 	TaskType    string
 	Provider    string
 	VideoID     string
 	Status      string // pending, processing, completed, failed
 	Title       string
 	VideoURL    string
+	Score       float64
+	ScoreDetail models.JSONMap
+	Rank        int
+	IsSelected  bool
 	InputData   models.JSONMap
 	OutputData  models.JSONMap
 	ErrorMsg    string
@@ -288,13 +294,19 @@ func (s *VideoService) SaveVideoTask(ctx context.Context, task *GenerateVideoTas
 		ID:          task.ID,
 		UserID:      task.UserID,
 		ProjectID:   task.ProjectID,
+		JobID:       task.JobID,
 		SceneID:     sceneID,
+		CandidateNo: task.CandidateNo,
 		TaskType:    task.TaskType,
 		Title:       task.Title,
 		Provider:    task.Provider,
 		VideoID:     task.VideoID,
 		VideoURL:    task.VideoURL,
 		Status:      task.Status,
+		Score:       task.Score,
+		ScoreDetail: task.ScoreDetail,
+		Rank:        task.Rank,
+		IsSelected:  task.IsSelected,
 		InputData:   task.InputData,
 		OutputData:  task.OutputData,
 		ErrorMsg:    task.ErrorMsg,
@@ -352,14 +364,20 @@ func (s *VideoService) ListVideoTasks(ctx context.Context, projectID uint) ([]*G
 func mapVideoTaskModel(m *models.VideoTask) *GenerateVideoTask {
 	res := &GenerateVideoTask{
 		ID:          m.ID,
+		JobID:       m.JobID,
 		ProjectID:   m.ProjectID,
 		UserID:      m.UserID,
+		CandidateNo: m.CandidateNo,
 		TaskType:    m.TaskType,
 		Provider:    m.Provider,
 		VideoID:     m.VideoID,
 		Title:       m.Title,
 		Status:      m.Status,
 		VideoURL:    m.VideoURL,
+		Score:       m.Score,
+		ScoreDetail: m.ScoreDetail,
+		Rank:        m.Rank,
+		IsSelected:  m.IsSelected,
 		InputData:   m.InputData,
 		OutputData:  m.OutputData,
 		ErrorMsg:    m.ErrorMsg,
@@ -371,4 +389,64 @@ func mapVideoTaskModel(m *models.VideoTask) *GenerateVideoTask {
 		res.SceneID = *m.SceneID
 	}
 	return res
+}
+
+func (s *VideoService) ListVideoTasksByJob(ctx context.Context, userID uint, projectID uint, jobID string) ([]*GenerateVideoTask, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("database is not initialized")
+	}
+	var list []models.VideoTask
+	err := s.db.WithContext(ctx).
+		Where("user_id = ? AND project_id = ? AND job_id = ?", userID, projectID, jobID).
+		Order("score DESC, created_at ASC").
+		Find(&list).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*GenerateVideoTask, 0, len(list))
+	for i := range list {
+		out = append(out, mapVideoTaskModel(&list[i]))
+	}
+	return out, nil
+}
+
+func (s *VideoService) SelectVideoTaskByVideoID(ctx context.Context, userID uint, projectID uint, jobID string, videoID string) (*GenerateVideoTask, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("database is not initialized")
+	}
+
+	var selected models.VideoTask
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.VideoTask{}).
+			Where("user_id = ? AND project_id = ? AND job_id = ?", userID, projectID, jobID).
+			Update("is_selected", false).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Where("user_id = ? AND project_id = ? AND job_id = ? AND video_id = ?", userID, projectID, jobID, videoID).
+			First(&selected).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&selected).Update("is_selected", true).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&models.VideoJob{}).
+			Where("user_id = ? AND project_id = ? AND job_id = ?", userID, projectID, jobID).
+			Updates(map[string]interface{}{
+				"selected_task_id":  selected.ID,
+				"selected_video_id": selected.VideoID,
+				"updated_at":        time.Now(),
+			}).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return mapVideoTaskModel(&selected), nil
 }

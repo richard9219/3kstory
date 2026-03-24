@@ -6,9 +6,10 @@ import { analyticsAPI, projectAPI, videoAPI } from '@/lib/api/client';
 import { FactoryHubCards } from '@/components/common/FactoryConsoleShell';
 import { OperationalInsightPanel } from '@/components/common/OperationalInsightCards';
 import { EmptyBlock, LoadingBlock } from '@/components/common/StateBlocks';
+import ScoreRadar from '@/components/common/ScoreRadar';
 import MiniButton, { MiniLinkButton } from '@/components/common/MiniButton';
 import { useAuthStore } from '@/lib/store/authStore';
-import type { AnalyticsSummary, PlatformKind, Project, VideoProviderKind, VideoTask } from '@/types';
+import type { AnalyticsSummary, PlatformKind, Project, VideoJobDetail, VideoProviderKind, VideoTask } from '@/types';
 import { ArrowLeft, BarChart3, CheckCircle2, Clapperboard, Clock3, ExternalLink, Film, Link2, Megaphone, Sparkles, Video, XCircle } from 'lucide-react';
 
 const PLATFORM_LABEL: Record<PlatformKind, string> = {
@@ -123,9 +124,18 @@ export default function DashboardPage() {
     sourceVideoPath: '',
     sourceVideoUrl: '',
     creativeBrief: '',
-    provider: 'runway' as 'runway' | 'pika' | 'local',
+    provider: 'runway' as VideoProviderKind,
+    providerMode: 'single' as 'single' | 'multi',
+    candidateCount: 3,
+    qualityMode: 'fast' as 'fast' | 'quality',
+    scoreProfile: 'default' as 'default' | 'short_drama' | 'movie_narration',
+    autoPick: true,
     aspectRatio: '16:9' as '16:9' | '9:16',
   });
+  const [activeJobId, setActiveJobId] = useState<string>('');
+  const [activeJobDetail, setActiveJobDetail] = useState<VideoJobDetail | null>(null);
+  const [selectingVideoID, setSelectingVideoID] = useState<string>('');
+  const [publishChecking, setPublishChecking] = useState(false);
 
   const loadData = () => {
     return Promise.all([
@@ -178,6 +188,10 @@ export default function DashboardPage() {
       return true;
     });
   }, [videos, providerFilter, pipelineFilter]);
+
+  const selectedCandidate = useMemo(() => {
+    return activeJobDetail?.candidates.find((candidate) => candidate.is_selected);
+  }, [activeJobDetail]);
 
   const insight = useMemo(() => {
     const recentDays = getRecentDays(range === '7d' ? 7 : 30);
@@ -265,6 +279,38 @@ export default function DashboardPage() {
     };
   }, [filteredVideos, range]);
 
+  const trustMetrics = useMemo(() => {
+    const completed = filteredVideos.filter((item) => item.status === 'completed').length;
+    const failed = filteredVideos.filter((item) => item.status === 'failed').length;
+    const totalFinished = completed + failed;
+    const passRate = totalFinished > 0 ? completed / totalFinished : 1;
+
+    const scored = filteredVideos.filter((item) => typeof item.score === 'number' && item.score > 0).map((item) => item.score as number);
+    const avgScore = scored.length > 0 ? scored.reduce((a, b) => a + b, 0) / scored.length : 0;
+    const scoreVariance = scored.length > 1
+      ? scored.reduce((acc, cur) => acc + Math.pow(cur - avgScore, 2), 0) / scored.length
+      : 0;
+    const scoreStd = Math.sqrt(scoreVariance);
+    const stability = scored.length > 0 ? Math.max(0, 1 - scoreStd / 0.25) : 0.72;
+
+    const duration = Math.max(insight.avgDurationMinutes, 0);
+    const efficiencyIndex = Math.max(0, Math.min(100,
+      Math.round(
+        passRate * 45 +
+        stability * 30 +
+        Math.max(0, 1 - Math.min(duration, 25) / 25) * 25,
+      ),
+    ));
+
+    return {
+      efficiencyIndex,
+      passRate,
+      stability,
+      avgDuration: duration,
+      avgScore,
+    };
+  }, [filteredVideos, insight.avgDurationMinutes]);
+
   const handleGenerateNarration = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.projectId || !form.movieTitle.trim()) {
@@ -275,26 +321,97 @@ export default function DashboardPage() {
     setSubmitLoading(true);
     setSubmitMsg(null);
     try {
-      const resp = await videoAPI.generateNarration(form.projectId, {
+      const resp = await videoAPI.generateNarrationAdvanced(form.projectId, {
         movie_title: form.movieTitle.trim(),
         synopsis: form.synopsis.trim(),
         style: form.style,
         target_duration: form.targetDuration,
         voice: form.voice,
         provider: form.provider,
+        provider_mode: form.providerMode,
+        providers: form.providerMode === 'multi' ? ['runway', 'minimax', 'comfy'] : [form.provider],
+        candidate_count: form.candidateCount,
+        quality_mode: form.qualityMode,
+        score_profile: form.scoreProfile,
+        auto_pick: form.autoPick,
         aspect_ratio: form.aspectRatio,
         source_video_path: form.sourceVideoPath.trim(),
         source_video_url: form.sourceVideoUrl.trim(),
         creative_brief: form.creativeBrief.trim(),
       });
       const status = resp.data?.status || 'processing';
-      const videoId = resp.data?.video_id || '';
-      setSubmitMsg(`已提交解说视频任务，状态：${status}${videoId ? `，video_id: ${videoId}` : ''}`);
+      const jobId = resp.data?.job_id || '';
+      if (jobId) {
+        setActiveJobId(jobId);
+      }
+      if (resp.data?.detail) {
+        setActiveJobDetail(resp.data.detail as VideoJobDetail);
+      }
+      setSubmitMsg(`已提交高级任务，状态：${status}${jobId ? `，job_id: ${jobId}` : ''}`);
       await loadData();
     } catch (error: any) {
       setSubmitMsg(error?.response?.data?.error || '提交失败，请稍后重试。');
     } finally {
       setSubmitLoading(false);
+    }
+  };
+
+  const handleRefreshJob = async () => {
+    if (!form.projectId || !activeJobId) return;
+    try {
+      const resp = await videoAPI.getJob(form.projectId, activeJobId);
+      setActiveJobDetail(resp.data.data);
+    } catch (error: any) {
+      setSubmitMsg(error?.response?.data?.error || '刷新任务失败');
+    }
+  };
+
+  useEffect(() => {
+    if (!activeJobId || !form.projectId || !activeJobDetail?.job?.status) return;
+    if (activeJobDetail.job.status === 'completed' || activeJobDetail.job.status === 'failed') {
+      return;
+    }
+    const timer = setInterval(async () => {
+      try {
+        const resp = await videoAPI.getJob(form.projectId, activeJobId);
+        setActiveJobDetail(resp.data.data);
+      } catch {
+        // keep polling silence to avoid noisy toast
+      }
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [activeJobId, activeJobDetail?.job?.status, form.projectId]);
+
+  const handleAutoPublishCheck = async () => {
+  if (!form.projectId || !activeJobId) return;
+  setPublishChecking(true);
+  setSubmitMsg(null);
+  try {
+    const resp = await videoAPI.autoPublishWithGate(form.projectId, activeJobId, { platform: 'douyin' });
+    setSubmitMsg(resp.data?.message || '已通过发布前质量门禁，可进入发布流程。');
+  } catch (error: any) {
+    const reason = error?.response?.data?.reason;
+    setSubmitMsg(reason || error?.response?.data?.error || '未通过发布前质量门禁');
+  } finally {
+    setPublishChecking(false);
+  }
+  };
+
+  const handleSelectCandidate = async (videoID: string) => {
+    if (!form.projectId || !activeJobId || !videoID) return;
+    setSelectingVideoID(videoID);
+    try {
+      await videoAPI.selectCandidate(form.projectId, activeJobId, {
+        video_id: videoID,
+        reason: 'manual_override',
+      });
+      await handleRefreshJob();
+      await loadData();
+      setSubmitMsg(`已切换主版本：${videoID}`);
+    } catch (error: any) {
+      setSubmitMsg(error?.response?.data?.error || '改选失败');
+    } finally {
+      setSelectingVideoID('');
     }
   };
 
@@ -355,6 +472,39 @@ export default function DashboardPage() {
               <div className="rounded-xl site-card p-4">
                 <div className="text-black/50 text-sm mb-1">内部互动</div>
                 <div className="text-2xl text-black font-semibold">{summary?.total_interactions ?? 0}</div>
+              </div>
+            </section>
+
+            <section className="rounded-xl site-card p-5 mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-black">效率与成功率看板</h2>
+                <span className="text-xs text-black/50">作为可信入口，展示当前产线健康度</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                <div className="rounded-xl border border-black/10 bg-white p-4">
+                  <div className="text-xs text-black/50 mb-1">自动化效率指数</div>
+                  <div className="text-2xl font-semibold text-black">{trustMetrics.efficiencyIndex}</div>
+                  <div className="mt-3 h-2 rounded-full bg-black/10 overflow-hidden">
+                    <div className="h-full bg-black/70" style={{ width: `${trustMetrics.efficiencyIndex}%` }} />
+                  </div>
+                </div>
+                <div className="rounded-xl border border-black/10 bg-white p-4">
+                  <div className="text-xs text-black/50 mb-1">首次通过率</div>
+                  <div className="text-2xl font-semibold text-black">{(trustMetrics.passRate * 100).toFixed(1)}%</div>
+                  <div className="mt-3 h-2 rounded-full bg-black/10 overflow-hidden">
+                    <div className="h-full bg-black/70" style={{ width: `${Math.max(0, Math.min(100, trustMetrics.passRate * 100))}%` }} />
+                  </div>
+                </div>
+                <div className="rounded-xl border border-black/10 bg-white p-4">
+                  <div className="text-xs text-black/50 mb-1">平均交付时长</div>
+                  <div className="text-2xl font-semibold text-black">{trustMetrics.avgDuration.toFixed(1)} 分钟</div>
+                  <div className="text-xs text-black/55 mt-2">越低越好，目标控制在 10 分钟内</div>
+                </div>
+                <div className="rounded-xl border border-black/10 bg-white p-4">
+                  <div className="text-xs text-black/50 mb-1">质量稳定度</div>
+                  <div className="text-2xl font-semibold text-black">{(trustMetrics.stability * 100).toFixed(1)}%</div>
+                  <div className="text-xs text-black/55 mt-2">平均候选分：{trustMetrics.avgScore > 0 ? trustMetrics.avgScore.toFixed(3) : '-'}</div>
+                </div>
               </div>
             </section>
 
@@ -551,13 +701,74 @@ export default function DashboardPage() {
                     AI 视频引擎
                     <select
                       value={form.provider}
-                      onChange={(e) => setForm((prev) => ({ ...prev, provider: e.target.value as 'runway' | 'pika' | 'local' }))}
+                      onChange={(e) => setForm((prev) => ({ ...prev, provider: e.target.value as VideoProviderKind }))}
                       className="factory-input mt-1 w-full rounded-lg px-3 py-2 bg-white border-black/15 text-black"
                     >
                       <option value="runway">Runway（主引擎）</option>
                       <option value="pika">Pika（备选）</option>
+                      <option value="minimax">MiniMax（平衡）</option>
+                      <option value="seedance">Seedance（高质）</option>
+                      <option value="comfy">Comfy（本地工作流）</option>
                       <option value="local">本地调试链路</option>
                     </select>
+                  </label>
+
+                  <label className="text-sm text-black/65">
+                    Provider策略
+                    <select
+                      value={form.providerMode}
+                      onChange={(e) => setForm((prev) => ({ ...prev, providerMode: e.target.value as 'single' | 'multi' }))}
+                      className="factory-input mt-1 w-full rounded-lg px-3 py-2 bg-white border-black/15 text-black"
+                    >
+                      <option value="single">单引擎</option>
+                      <option value="multi">多引擎混合</option>
+                    </select>
+                  </label>
+
+                  <label className="text-sm text-black/65">
+                    候选数量
+                    <input
+                      type="number"
+                      min={1}
+                      max={8}
+                      value={form.candidateCount}
+                      onChange={(e) => setForm((prev) => ({ ...prev, candidateCount: Number(e.target.value) || 3 }))}
+                      className="factory-input mt-1 w-full rounded-lg px-3 py-2 bg-white border-black/15 text-black"
+                    />
+                  </label>
+
+                  <label className="text-sm text-black/65">
+                    质量模式
+                    <select
+                      value={form.qualityMode}
+                      onChange={(e) => setForm((prev) => ({ ...prev, qualityMode: e.target.value as 'fast' | 'quality' }))}
+                      className="factory-input mt-1 w-full rounded-lg px-3 py-2 bg-white border-black/15 text-black"
+                    >
+                      <option value="fast">fast</option>
+                      <option value="quality">quality</option>
+                    </select>
+                  </label>
+
+                  <label className="text-sm text-black/65">
+                    评分档案
+                    <select
+                      value={form.scoreProfile}
+                      onChange={(e) => setForm((prev) => ({ ...prev, scoreProfile: e.target.value as 'default' | 'short_drama' | 'movie_narration' }))}
+                      className="factory-input mt-1 w-full rounded-lg px-3 py-2 bg-white border-black/15 text-black"
+                    >
+                      <option value="default">default</option>
+                      <option value="short_drama">short_drama</option>
+                      <option value="movie_narration">movie_narration</option>
+                    </select>
+                  </label>
+
+                  <label className="text-sm text-black/65 inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={form.autoPick}
+                      onChange={(e) => setForm((prev) => ({ ...prev, autoPick: e.target.checked }))}
+                    />
+                    自动选片（Top1）
                   </label>
 
                   <label className="text-sm text-black/65">
@@ -614,13 +825,97 @@ export default function DashboardPage() {
             </section>
 
             <section>
+              {activeJobDetail ? (
+                <div className="rounded-xl site-card p-4 mb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-semibold text-black">当前候选评分</h3>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-black/60">job: {activeJobDetail.job.job_id}</span>
+                      <MiniButton type="button" size="xs" tone="light" onClick={handleRefreshJob}>刷新</MiniButton>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                    <div className="rounded-lg border border-black/10 bg-white p-3">
+                      <div className="text-xs text-black/55 mb-1">队列状态</div>
+                      <div className="text-sm text-black">{activeJobDetail.job.queue_status || activeJobDetail.job.status}</div>
+                    </div>
+                    <div className="rounded-lg border border-black/10 bg-white p-3">
+                      <div className="text-xs text-black/55 mb-1">质量阈值</div>
+                      <div className="text-sm text-black">{activeJobDetail.job.publish_threshold ?? 0.72}</div>
+                    </div>
+                    <div className="rounded-lg border border-black/10 bg-white p-3">
+                      <div className="text-xs text-black/55 mb-1">门禁结果</div>
+                      <div className="text-sm text-black">{activeJobDetail.job.publish_gate_passed ? '通过' : `拦截${activeJobDetail.job.publish_block_reason ? `：${activeJobDetail.job.publish_block_reason}` : ''}`}</div>
+                    </div>
+                  </div>
+
+                  <div className="mb-4">
+                    <MiniButton
+                      type="button"
+                      size="xs"
+                      tone="neutral"
+                      disabled={publishChecking || activeJobDetail.job.status !== 'completed'}
+                      onClick={handleAutoPublishCheck}
+                    >
+                      {publishChecking ? '校验中...' : '发布前门禁校验'}
+                    </MiniButton>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {activeJobDetail.candidates.map((candidate) => (
+                      <div key={candidate.video_id || candidate.id} className="rounded-lg border border-black/10 bg-white p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-sm text-black font-medium">候选 #{candidate.candidate_no || '-'}</div>
+                          <div className="text-xs text-black/55">{candidate.provider}</div>
+                        </div>
+                        <div className="text-sm text-black/70">score: {candidate.score ?? 0} / rank: {candidate.rank ?? '-'}</div>
+                        <div className="text-sm text-black/70">状态: {candidate.status}{candidate.is_selected ? '（主版本）' : ''}</div>
+                        <div className="mt-3 flex items-center gap-2">
+                          {candidate.video_url ? (
+                            <MiniButton
+                              type="button"
+                              size="xs"
+                              tone="light"
+                              icon={ExternalLink}
+                              iconSize={14}
+                              onClick={() => window.open(candidate.video_url!, '_blank', 'noopener,noreferrer')}
+                            >
+                              预览
+                            </MiniButton>
+                          ) : null}
+                          {!candidate.is_selected && candidate.video_id ? (
+                            <MiniButton
+                              type="button"
+                              size="xs"
+                              tone="neutral"
+                              disabled={selectingVideoID === candidate.video_id}
+                              onClick={() => handleSelectCandidate(candidate.video_id)}
+                            >
+                              {selectingVideoID === candidate.video_id ? '切换中...' : '设为主版本'}
+                            </MiniButton>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {selectedCandidate?.score_detail ? (
+                    <div className="mt-4">
+                      <ScoreRadar detail={selectedCandidate.score_detail as Record<string, any>} />
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
               <h2 className="text-xl font-semibold text-black mb-3">最近任务记录</h2>
               <div className="rounded-xl border border-black/10 bg-white overflow-hidden">
                 <div className="grid grid-cols-12 gap-3 px-4 py-3 text-xs text-black/50 border-b border-black/10">
-                  <div className="col-span-4">标题</div>
+                  <div className="col-span-3">标题</div>
                   <div className="col-span-2">类型</div>
                   <div className="col-span-2">状态</div>
-                  <div className="col-span-2">来源</div>
+                  <div className="col-span-1">评分</div>
+                  <div className="col-span-1">来源</div>
+                  <div className="col-span-1">主版本</div>
                   <div className="col-span-1">时间</div>
                   <div className="col-span-1">操作</div>
                 </div>
@@ -631,7 +926,7 @@ export default function DashboardPage() {
                 ) : (
                   videos.map((item) => (
                     <div key={item.id} className="grid grid-cols-12 gap-3 px-4 py-3 border-b border-black/5 last:border-b-0 items-center">
-                      <div className="col-span-4 text-black text-sm truncate flex items-center gap-2">
+                      <div className="col-span-3 text-black text-sm truncate flex items-center gap-2">
                         <Video className="w-4 h-4 text-black/70" />
                         {item.title || item.video_id}
                       </div>
@@ -639,7 +934,9 @@ export default function DashboardPage() {
                       <div className="col-span-2 text-sm">
                         <span className={`inline-flex px-2 py-1 rounded-md border ${statusBadge(item.status)}`}>{item.status}</span>
                       </div>
-                      <div className="col-span-2 text-black/65 text-sm">{PROVIDER_LABEL[item.provider] || item.provider}</div>
+                      <div className="col-span-1 text-black/65 text-sm">{item.score ? item.score.toFixed(3) : '-'}</div>
+                      <div className="col-span-1 text-black/65 text-sm">{PROVIDER_LABEL[item.provider] || item.provider}</div>
+                      <div className="col-span-1 text-black/65 text-xs">{item.is_selected ? '主版本' : '-'}</div>
                       <div className="col-span-1 text-black/50 text-xs inline-flex items-center gap-1">
                         <Clock3 className="w-3.5 h-3.5" />
                         {new Date(item.created_at).toLocaleDateString()}

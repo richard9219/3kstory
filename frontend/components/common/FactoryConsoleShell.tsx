@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { ArrowLeft, Boxes, Clapperboard, Cpu, Layers3, Wand2 } from 'lucide-react';
+import { ArrowLeft, Boxes, Clapperboard, Cpu, Layers3, Rocket, UserRoundCog, Wand2 } from 'lucide-react';
 
 const HUB_LINKS = [
   {
@@ -25,6 +25,20 @@ const HUB_LINKS = [
     title: '分镜中心',
     description: '承接章节拆分、镜头队列、版本审核与镜头生产。',
     icon: Clapperboard,
+    accent: 'from-black/10 to-black/0',
+  },
+  {
+    href: '/factory/releases',
+    title: '发布历史',
+    description: '查看导演版各平台上传回执，失败后可一键重试。',
+    icon: Rocket,
+    accent: 'from-black/10 to-black/0',
+  },
+  {
+    href: '/factory/director-agents',
+    title: '导演 Agent',
+    description: '管理导演模板、自动策略与 A/B 双导演选优。',
+    icon: UserRoundCog,
     accent: 'from-black/10 to-black/0',
   },
 ];

@@ -32,6 +32,7 @@ type PlatformOAuthItem struct {
 	ClientSecret string
 	RedirectURI  string
 	Scope        string
+	PublishAPI   string
 }
 
 type DatabaseConfig struct {
@@ -105,6 +106,8 @@ type AIConfig struct {
 	PikaAPIKey              string
 	ModelProbeInterval      int
 	ModelFailThreshold      int
+	VideoJobQueueWorkers    int
+	PublishQualityThreshold float64
 	NarrationOutputDir      string
 	NarrationPublicBase     string
 }
@@ -117,6 +120,8 @@ func Load() *Config {
 	ollamaTimeout, _ := strconv.Atoi(getEnv("OLLAMA_TIMEOUT", "60"))
 	modelProbeInterval, _ := strconv.Atoi(getEnv("MODEL_PROBE_INTERVAL", "60"))
 	modelFailThreshold, _ := strconv.Atoi(getEnv("MODEL_FAIL_THRESHOLD", "3"))
+	videoJobQueueWorkers, _ := strconv.Atoi(getEnv("VIDEO_JOB_QUEUE_WORKERS", "2"))
+	publishQualityThreshold, _ := strconv.ParseFloat(getEnv("PUBLISH_QUALITY_THRESHOLD", "0.72"), 64)
 
 	return &Config{
 		Env:         getEnv("ENV", "development"),
@@ -190,6 +195,8 @@ func Load() *Config {
 			PikaAPIKey:              getEnv("PIKA_API_KEY", ""),
 			ModelProbeInterval:      maxInt(modelProbeInterval, 15),
 			ModelFailThreshold:      maxInt(modelFailThreshold, 1),
+			VideoJobQueueWorkers:    maxInt(videoJobQueueWorkers, 1),
+			PublishQualityThreshold: clampFloat(publishQualityThreshold, 0.1, 1),
 			NarrationOutputDir:      getEnv("NARRATION_OUTPUT_DIR", ".local/videos/narration"),
 			NarrationPublicBase:     strings.TrimRight(getEnv("NARRATION_PUBLIC_BASE", "http://localhost:8003/files/narration"), "/"),
 		},
@@ -199,24 +206,28 @@ func Load() *Config {
 				ClientSecret: getEnv("DOUYIN_CLIENT_SECRET", ""),
 				RedirectURI:  getEnv("DOUYIN_REDIRECT_URI", ""),
 				Scope:        getEnv("DOUYIN_SCOPE", "user_info,video.list,video.publish"),
+				PublishAPI:   getEnv("DOUYIN_PUBLISH_API", "https://open.douyin.com/video/upload/"),
 			},
 			Xiaohongshu: PlatformOAuthItem{
 				ClientID:     getEnv("XIAOHONGSHU_CLIENT_ID", ""),
 				ClientSecret: getEnv("XIAOHONGSHU_CLIENT_SECRET", ""),
 				RedirectURI:  getEnv("XIAOHONGSHU_REDIRECT_URI", ""),
 				Scope:        getEnv("XIAOHONGSHU_SCOPE", "user_info,note_publish"),
+				PublishAPI:   getEnv("XIAOHONGSHU_PUBLISH_API", "https://edith.xiaohongshu.com/api/sns/v1/note/publish"),
 			},
 			Bilibili: PlatformOAuthItem{
 				ClientID:     getEnv("BILIBILI_CLIENT_ID", ""),
 				ClientSecret: getEnv("BILIBILI_CLIENT_SECRET", ""),
 				RedirectURI:  getEnv("BILIBILI_REDIRECT_URI", ""),
 				Scope:        getEnv("BILIBILI_SCOPE", ""),
+				PublishAPI:   getEnv("BILIBILI_PUBLISH_API", "https://member.bilibili.com/x/vu/web/add/v3"),
 			},
 			Weibo: PlatformOAuthItem{
 				ClientID:     getEnv("WEIBO_CLIENT_ID", ""),
 				ClientSecret: getEnv("WEIBO_CLIENT_SECRET", ""),
 				RedirectURI:  getEnv("WEIBO_REDIRECT_URI", ""),
 				Scope:        getEnv("WEIBO_SCOPE", ""),
+				PublishAPI:   getEnv("WEIBO_PUBLISH_API", "https://api.weibo.com/2/statuses/share.json"),
 			},
 		},
 	}
@@ -225,6 +236,16 @@ func Load() *Config {
 func maxInt(v, min int) int {
 	if v < min {
 		return min
+	}
+	return v
+}
+
+func clampFloat(v float64, min float64, max float64) float64 {
+	if v < min {
+		return min
+	}
+	if v > max {
+		return max
 	}
 	return v
 }

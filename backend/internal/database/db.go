@@ -52,6 +52,9 @@ func autoMigrate(db *gorm.DB) error {
 		&models.StoryboardShot{},
 		&models.AITask{},
 		&models.PlatformAccount{},
+		&models.VideoJob{},
 		&models.VideoTask{},
+		&models.DirectorPublishRecord{},
+		&models.DirectorTemplate{},
 	)
 }
